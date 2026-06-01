@@ -1,0 +1,182 @@
+/* ============================================================================
+   ETG (Evolution Technology Group) — Design Tokens
+   Source of truth: frontend/app/globals.css (shadcn/ui + Tailwind HSL tokens)
+   reconciled with the v1 mockups (Projects / Service Tickets / Assets / etc).
+
+   HSL channels are stored unwrapped (e.g. "215 60% 27%") so they can be used
+   as `hsl(var(--token))` and `hsl(var(--token) / <alpha>)` — matching the
+   codebase. Hex equivalents are noted in comments for convenience.
+   Load Inter + Playfair Display from Google Fonts in each HTML file:
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@600;700;800;900&display=swap" rel="stylesheet">
+   ============================================================================ */
+
+:root {
+  /* ---- Brand (from logo.svg) -------------------------------------------- */
+  --brand-navy: 244 46% 26%;       /* #262262  wordmark "ETG" */
+  --brand-blue: 208 98% 46%;       /* #027FE8  logo mark / gradient start */
+  --brand-blue-bright: 199 99% 46%;/* #009DEC  logo gradient end */
+
+  /* ---- Surfaces --------------------------------------------------------- */
+  --background: 210 40% 98%;        /* #F8FAFC  app canvas (cool off-white) */
+  --foreground: 222 47% 11%;        /* #0F172A  primary ink (slate-950) */
+  --card: 0 0% 100%;                /* #FFFFFF  card / panel surface */
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  /* ---- Primary action blue ---------------------------------------------- */
+  /* The v1 mockups use a vivid action-blue for buttons, active nav and links.
+     (The legacy globals.css --primary was a deeper navy; the v1 surfaces moved
+     to this brighter blue, sampled from the New Project / New Ticket buttons.) */
+  --primary: 215 84% 46%;           /* #1366D6  buttons, active nav, links */
+  --primary-foreground: 0 0% 100%;
+  --primary-deep: 215 60% 27%;      /* #1C3E6E  deep navy (legacy primary) */
+  --primary-subtle: 215 84% 95%;    /* #EAF1FC  tinted blue background */
+
+  /* ---- Secondary / neutral ---------------------------------------------- */
+  --secondary: 210 40% 96%;         /* #F1F5F9  subtle fill */
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;             /* #F1F5F9 */
+  --muted-foreground: 215 16% 47%;  /* #64748B  slate-500, secondary text */
+
+  /* ---- Accent (teal) ---------------------------------------------------- */
+  --accent: 187 86% 30%;            /* #0A8C9D  teal accent */
+  --accent-foreground: 0 0% 100%;
+  --accent-subtle: 187 70% 94%;     /* #E3F7F9 */
+
+  /* ---- Lines & focus ---------------------------------------------------- */
+  --border: 214 32% 91%;            /* #E2E8F0  hairline borders */
+  --input: 214 32% 91%;
+  --ring: 215 84% 46%;              /* focus ring = primary */
+
+  /* ---- Semantic intents ------------------------------------------------- */
+  --destructive: 0 65% 46%;         /* #C22B2B  danger / error / high */
+  --destructive-foreground: 0 0% 100%;
+  --destructive-subtle: 0 65% 96%;  /* #FBEAEA */
+  --warning: 28 80% 52%;            /* #E68729  warning / medium / on-hold */
+  --warning-foreground: 0 0% 100%;
+  --warning-subtle: 28 80% 94%;     /* #FCEEE0 */
+  --success: 142 64% 32%;           /* #1E8649  success / complete / online */
+  --success-foreground: 0 0% 100%;
+  --success-subtle: 142 50% 94%;    /* #E5F5EC */
+  --info: 211 60% 45%;              /* #2E73B8  informational / in-progress */
+  --info-foreground: 0 0% 100%;
+  --info-subtle: 211 60% 95%;       /* #EAF2FA */
+
+  /* ---- Status tokens (badges, rows) ------------------------------------- */
+  --status-draft: 215 16% 47%;      /* slate    — Draft / Planned / Low */
+  --status-active: 211 60% 45%;     /* blue     — Active / In Progress / Open */
+  --status-blocked: 0 65% 46%;      /* red      — Blocked / On Hold */
+  --status-locked: 0 72% 38%;       /* dark red — Locked */
+  --status-overdue: 0 65% 46%;      /* red      — Overdue */
+  --status-warning: 28 80% 52%;     /* orange   — Warning / Medium */
+  --status-critical: 0 72% 38%;     /* dark red — Critical / Urgent */
+  --status-complete: 142 64% 32%;   /* green    — Complete / Resolved / Online */
+  --status-invoiced: 215 25% 35%;   /* steel    — Invoiced */
+
+  /* ---- Sidebar (dark navy rail) ----------------------------------------- */
+  --sidebar: 222 47% 11%;           /* #0F172A  navigation rail */
+  --sidebar-foreground: 215 20% 75%;/* #B0BBCB  inactive nav label */
+  --sidebar-accent: 0 0% 100%;
+  --sidebar-accent-foreground: 222 47% 11%;
+  --sidebar-border: 215 20% 25%;    /* #323E4D  rail dividers */
+
+  /* ---- Geometry --------------------------------------------------------- */
+  --radius: 0.625rem;               /* 10px  — lg. md = 8px, sm = 6px */
+  --radius-sm: 0.375rem;            /* 6px   — inputs, badges-as-pills use full */
+  --radius-md: 0.5rem;              /* 8px */
+  --radius-lg: 0.625rem;            /* 10px  — cards */
+  --radius-xl: 0.75rem;             /* 12px  — KPI cards, panels */
+
+  /* ---- Elevation -------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow:    0 1px 3px 0 rgb(15 23 42 / 0.08), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+  --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.10), 0 4px 6px -4px rgb(15 23 42 / 0.06);
+  --shadow-xl: 0 20px 25px -5px rgb(15 23 42 / 0.10), 0 8px 10px -6px rgb(15 23 42 / 0.05);
+
+  /* ---- Type families ---------------------------------------------------- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif; /* hero/marketing only */
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* ============================================================================
+   SEMANTIC TYPE SCALE
+   Inter throughout the product UI. Playfair Display is reserved for marketing /
+   login hero moments only. Sizes mirror the dense enterprise dashboard:
+   tight line-heights, heavy weights for numbers/labels.
+   ============================================================================ */
+
+.etg-text-base { font-family: var(--font-sans); color: hsl(var(--foreground)); }
+
+/* Display / hero (Playfair) — login & marketing surfaces */
+.h-hero {
+  font-family: var(--font-serif);
+  font-size: 48px; line-height: 1.05; font-weight: 800;
+  letter-spacing: -0.02em; color: hsl(var(--foreground));
+}
+
+/* Page title — e.g. "Projects", "Service Tickets" */
+.h1 {
+  font-family: var(--font-sans);
+  font-size: 30px; line-height: 1.15; font-weight: 700;
+  letter-spacing: -0.02em; color: hsl(var(--foreground));
+}
+
+/* Section / panel title — e.g. "Project Overview", "1. Customer & Site" */
+.h2 {
+  font-family: var(--font-sans);
+  font-size: 20px; line-height: 1.25; font-weight: 600;
+  letter-spacing: -0.01em; color: hsl(var(--foreground));
+}
+
+/* Card title / sub-section */
+.h3 {
+  font-family: var(--font-sans);
+  font-size: 16px; line-height: 1.3; font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Body */
+.p {
+  font-family: var(--font-sans);
+  font-size: 14px; line-height: 1.5; font-weight: 400;
+  color: hsl(var(--foreground));
+}
+
+/* Secondary / supporting text */
+.p-muted {
+  font-family: var(--font-sans);
+  font-size: 14px; line-height: 1.5; font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Small print — table meta, captions, timestamps */
+.small {
+  font-family: var(--font-sans);
+  font-size: 12px; line-height: 1.4; font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Overline / eyebrow label — KPI titles, field labels (uppercase) */
+.overline {
+  font-family: var(--font-sans);
+  font-size: 11px; line-height: 1.3; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Metric / stat number — KPI values, health scores */
+.metric {
+  font-family: var(--font-sans);
+  font-size: 30px; line-height: 1; font-weight: 700;
+  letter-spacing: -0.02em; color: hsl(var(--foreground));
+}
+
+/* Monospaced data — asset IDs, IPs, ticket numbers */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 13px; line-height: 1.4; font-weight: 500;
+  color: hsl(var(--foreground));
+}
