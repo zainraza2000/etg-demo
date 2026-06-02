@@ -4,6 +4,8 @@ A live, interactive prototype of the **ETG Dashboard** (*"Leakage & Margin Contr
 
 **▶ Live demo:** https://zainraza2000.github.io/etg-demo/
 
+> **Implementing from this demo? Read [`AGENTS.md`](./AGENTS.md) first** — it explains what's real vs mock, what the on-screen `Upcoming`/`Preview`/`Read-only` tags mean (and what to do with them), the ID/timezone/money conventions, and where the authoritative spec lives. Don't treat this prototype as a spec without it.
+
 ## What this is
 
 A **static, build-free** React prototype — React (UMD) + in-browser Babel + lucide icons + Google Fonts, all from CDN. No backend, no bundler. It uses sample data and cosmetic interactions (row select, nav). Use the left rail to switch screens:
