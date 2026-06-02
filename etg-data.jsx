@@ -126,6 +126,14 @@ const PROJECT_STATUSES = ['Quoted', 'Planned', 'In Progress', 'On Hold', 'Comple
 const PROJECT_SUPPLIERS = [['SUP-000019', 'TechVision Wholesale'], ['SUP-000022', 'Security Distributors'], ['SUP-000031', 'Bosch Security Systems']];
 const PROJECT_SKILLS = ['Security Licence 1A', 'Electrical (A-Grade)', 'Cabling (ACMA)', 'Working at Heights', 'Networking'];
 const SAMPLE_QUOTE = { id: 'Q-002184', value: '$96,000.00', accepted: '02 May 2026', client: 'ABC Corporate' };
+// existing field jobs a visit can schedule (FJ- · title · client – site, + auto-fill data)
+const FIELD_JOBS = [
+  { fj: 'FJ-000310', title: 'CCTV Upgrade', client: 'ABC Corporate', site: 'Sydney Office', cc: 'CC-000046', skills: ['CCTV'], licences: ['Security Licence 1A'] },
+  { fj: 'FJ-000311', title: 'Access Control Install', client: 'ABC Corporate', site: 'Sydney Office', cc: 'CC-000045', skills: ['Access Control'], licences: ['Security Licence 1A'] },
+  { fj: 'FJ-000305', title: 'Automation Install', client: 'Fusion Manufacturing', site: 'Factory 1', cc: 'CC-000049', skills: ['Automation', 'Networking'], licences: ['Electrical (A-Grade)'] },
+  { fj: 'FJ-000288', title: 'School Security Upgrade', client: "St. Mary's College", site: 'Main Campus', cc: 'CC-000061', skills: ['Access Control'], licences: ['Security Licence 1A'] },
+  { fj: 'FJ-000277', title: 'Store 47 Maintenance', client: 'Retail Group', site: 'Store 47', cc: 'CC-000046', skills: ['CCTV', 'Alarms'], licences: ['Working at Heights'] },
+];
 
 // ---- Client Assets ----
 const ASSET_KPIS = [
@@ -308,7 +316,7 @@ TIMESHEETS.forEach((t, i) => { t.usr = 'USR-' + String(12 + i).padStart(6, '0');
 Object.assign(window, {
   NAV, PROJECT_KPIS, PROJECTS, TICKET_KPIS, TICKETS, TICKETS_NEEDS_REVIEW, ASSET_KPIS, ASSETS,
   ISSUE_TYPES, SOURCES, CUSTOMER_IMPACT, JOB_CLASSIFICATIONS, PRIORITIES, SAMPLE_CUSTOMERS,
-  PROJECT_CLIENTS, PROJECT_OWNERS, PROJECT_SERVICE_TYPES, PROJECT_STATUSES, PROJECT_SUPPLIERS, PROJECT_SKILLS, SAMPLE_QUOTE,
+  PROJECT_CLIENTS, PROJECT_OWNERS, PROJECT_SERVICE_TYPES, PROJECT_STATUSES, PROJECT_SUPPLIERS, PROJECT_SKILLS, SAMPLE_QUOTE, FIELD_JOBS,
   CAL_KPIS, CAL_DAYS, TECHS, CAL_JOBS, CAL_UNASSIGNED, ASSET_KPIS2,
   TIMESHEET_KPIS, TIMESHEETS,
 });
