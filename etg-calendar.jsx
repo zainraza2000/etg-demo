@@ -52,7 +52,9 @@ function CalKpiCard({ title, value, sub, icon, color, readOnly, upcoming }) {
 
 function CalendarScreen() {
   const [sel, setSel] = useStateCal('0-0');
+  const [worker, setWorker] = useStateCal(null); // technician index for drill-down
   const CELL = 168;
+  if (worker !== null) return <WorkerCalendar techIndex={worker} onBack={() => setWorker(null)} onOpenVisit={() => {}} />;
   // resolve selected job from the "ti-di" / "u-di" key
   let selJob = null;
   if (sel && sel.indexOf('u-') === 0) {
@@ -112,10 +114,11 @@ function CalendarScreen() {
               {/* tech rows */}
               {TECHS.map((tech, ti) => (
                 <div key={ti} style={{ display: 'grid', gridTemplateColumns: `184px repeat(7, ${CELL}px)`, borderBottom: '1px solid hsl(var(--border))', minHeight: 96 }}>
-                  <div style={{ padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <div onClick={() => setWorker(ti)} title={`Open ${tech.name}'s calendar`} style={{ padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', borderRadius: 8 }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted) / 0.5)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                     <Avatar name={tech.name} size={30} />
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.2 }}>{tech.name}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.2, color: 'hsl(var(--primary))' }}>{tech.name}</div>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 11, color: TECH_STATE_COLOR[tech.state], display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: TECH_STATE_COLOR[tech.state] }} />{tech.state}</span>
