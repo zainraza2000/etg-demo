@@ -319,8 +319,8 @@ function NewVisitForm({ prefill, techIndex, onCancel, onCreate }) {
             <WvField label="Technician" req><WvSelect value={`${tech.name}`} /></WvField>
             <WvField label="Date" req><WvSelect value={`${WC_DAYS[day]} ${WC_DATES[day]} May 2026`} /></WvField>
             <WvField label="Estimated hours" tag={<ReadOnlyTag />}><div style={{ ...wcFormInput, display: 'flex', alignItems: 'center', background: 'hsl(var(--muted) / 0.45)', color: 'hsl(var(--muted-foreground))' }}>{estHours} h</div></WvField>
-            <WvField label="Start time" req><WvSelect value={zone ? null : wcFmt(startMin)}>{zone ? <SiteTime time={wcFmt(startMin)} zone={zone} oneline /> : null}</WvSelect></WvField>
-            <WvField label="End time" req><WvSelect value={zone ? null : wcFmt(endMin)}>{zone ? <SiteTime time={wcFmt(endMin)} zone={zone} oneline /> : null}</WvSelect></WvField>
+            <WvField label="Start time" req><WvSelect value={wcFmt(startMin) + (zone ? ' ' + tzAbbr(zone) : '')} /></WvField>
+            <WvField label="End time" req><WvSelect value={wcFmt(endMin) + (zone ? ' ' + tzAbbr(zone) : '')} /></WvField>
           </div>
           {zone && <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 9, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="clock" size={12} />Times shown in site time: <SiteTime time={wcFmt(startMin) + ' – ' + wcFmt(endMin)} zone={zone} oneline /></div>}
         </WvSection>
