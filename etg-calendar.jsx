@@ -225,9 +225,9 @@ function JobDetail({ job }) {
       </Panel>
 
       <Panel title="Quick Actions">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[['eye', 'View Job', false], ['ticket', 'Create Service Ticket', false], ['activity', 'Update Progress', true], ['camera', 'Upload Photos', true]].map(([ic, l, up], i) =>
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '8px 10px', fontSize: 12, fontWeight: 500, color: up ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))', cursor: 'pointer' }}>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 11px', fontSize: 12.5, fontWeight: 500, color: up ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))', cursor: 'pointer' }}>
               <Icon name={ic} size={14} />{l}{up && <span style={{ marginLeft: 'auto' }}><UpcomingPill compact /></span>}</div>)}
         </div>
       </Panel>

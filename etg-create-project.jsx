@@ -123,8 +123,8 @@ function CreateProjectScreen({ onClose }) {
             <CpField label="Priority" req><CpSelect value="Medium" dot="hsl(var(--warning))" /></CpField>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <CpField label="Service Type" req><CpSelect ph="Select service type" /></CpField>
-            <CpField label="Job Type" req><CpSelect ph="Select job type" /></CpField>
+            <CpField label="Service Type" req><CpSelect value="Mixed" /></CpField>
+            <CpField label="Job Type" req><CpSelect value="Installation" /></CpField>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Project Stage" tag={<ReadOnlyTag />}><CpBadgeRO status="Planned" /></CpField>

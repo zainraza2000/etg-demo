@@ -58,7 +58,7 @@ function sumHrs(entries) {
 
 function TimesheetsScreen() {
   const [selected, setSelected] = useStateTs('USR-000013');
-  const [expanded, setExpanded] = useStateTs('USR-000012');
+  const [expanded, setExpanded] = useStateTs('USR-000013');
   const sheet = TIMESHEETS.find((t) => t.id === selected);
 
   return (

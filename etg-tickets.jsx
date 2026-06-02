@@ -109,7 +109,7 @@ function ServiceTicketsScreen({ onNewTicket }) {
         <Panel title="Tickets by Priority"><Donut total={23} label="Total" segments={[
           { label: 'High', value: 4, color: 'hsl(var(--destructive))' }, { label: 'Medium', value: 10, color: 'hsl(var(--warning))' }, { label: 'Low', value: 9, color: 'hsl(var(--success))' }]} /></Panel>
         <Panel title="Tickets by Status"><Donut total={23} label="Total" segments={[
-          { label: 'Open', value: 11, color: 'hsl(var(--primary))' }, { label: 'In Progress', value: 12, color: 'hsl(var(--info))' }, { label: 'On Hold', value: 5, color: 'hsl(var(--warning))' }]} /></Panel>
+          { label: 'Open', value: 6, color: 'hsl(var(--primary))' }, { label: 'In Progress', value: 12, color: 'hsl(var(--info))' }, { label: 'On Hold', value: 5, color: 'hsl(var(--warning))' }]} /></Panel>
         <Panel title="SLA Performance" action={<UpcomingPill />}>
           <div style={{ border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 10, padding: '20px 14px', textAlign: 'center' }}>
             <div style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: 'hsl(var(--muted-foreground))' }}>—</div>

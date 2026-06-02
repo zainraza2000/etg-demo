@@ -63,7 +63,7 @@ const PROJECTS = [
 
 // ---- Service Tickets ----
 const TICKET_KPIS = [
-  { title: 'Open Tickets', value: '23', sub: 'View all', icon: 'shield-alert', color: 'blue' },
+  { title: 'Active Tickets', value: '23', sub: 'View all', icon: 'shield-alert', color: 'blue' },
   { title: 'In Progress', value: '12', sub: 'View all', icon: 'clock', color: 'orange' },
   { title: 'On Hold', value: '5', sub: 'View all', icon: 'pause-circle', color: 'green' },
   { title: 'Overdue', value: '4', sub: 'View all', icon: 'alarm-clock', color: 'red' },
@@ -341,7 +341,7 @@ const RECON_KPIS = [
   { title: 'Potential Matches', value: '56', sub: '$102,430.20 — View all', icon: 'link', color: 'orange' },
   { title: 'Pending Verification', value: '18', sub: '$34,280.75 — View all', icon: 'user-check', color: 'violet' },
   { title: 'Exceptions', value: '11', sub: '$22,650.80 — View all', icon: 'alert-triangle', color: 'red' },
-  { title: 'Approved (This Month)', value: '72', sub: '$152,870.60 — View report', icon: 'check-circle-2', color: 'slate' },
+  { title: 'Verified (This Month)', value: '72', sub: '$152,870.60 — View report', icon: 'check-circle-2', color: 'slate' },
 ];
 const RECON_TABS = [['All Items', 126], ['Potential Matches', 56], ['Pending Verification', 18], ['Verified', 22], ['Manager Review', 6], ['Exceptions', 11], ['Unallocated', 13]];
 const RECON_ROWS = [
