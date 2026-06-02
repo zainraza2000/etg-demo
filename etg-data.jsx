@@ -256,8 +256,8 @@ const TIMESHEETS = [
   { tech: 'Jake Murray', id: 'USR-000013', total: '35.25', billable: '28.75', billablePct: 82, nonBillable: '6.50', nonBillablePct: 18, status: 'Pending Approval',
     week: '12 – 18 May 2026', overtime: '0.00', standard: '35.25', breaks: '1.00',
     entries: [
-      { day: 'Mon, 12 May', job: 'FJ-001055 – NVR Install', loc: 'Retail Group – Store 47', time: '7:30 AM – 11:00 AM', brk: '—', hrs: '3.50', type: 'Billable', status: 'Approved', inv: 'Ready to invoice' },
-      { day: 'Mon, 12 May', job: 'FJ-001056 – Intercom Fault', loc: "St Mary's College – Main", time: '12:30 PM – 4:30 PM', brk: '0:30', hrs: '4.00', type: 'Billable', status: 'Pending', inv: 'Not ready' },
+      { day: 'Mon, 12 May', job: 'FJ-001052 – CCTV Upgrade', loc: 'ABC Corporate – Level 1', time: '7:30 AM – 11:00 AM', brk: '—', hrs: '3.50', type: 'Billable', status: 'Approved', inv: 'Ready to invoice' },
+      { day: 'Mon, 12 May', job: 'FJ-001056 – Intercom Fault', loc: "St Mary's College – Main", time: '12:00 PM – 4:00 PM', brk: '—', hrs: '4.00', type: 'Billable', status: 'Pending', inv: 'Not ready' },
       { day: 'Tue, 13 May', job: 'FJ-001055 – NVR Install', loc: 'Retail Group – Store 47', time: '8:00 AM – 4:30 PM', brk: '0:30', hrs: '8.00', type: 'Billable', status: 'Approved', inv: 'Invoiced ✓' },
       { day: 'Wed, 14 May', job: 'Travel To Site', loc: '—', time: '6:30 AM – 7:30 AM', brk: '—', hrs: '1.00', type: 'Non-Billable', status: 'Approved', inv: '—' },
       { day: 'Wed, 14 May', job: 'FJ-001056 – Intercom Fault', loc: "St Mary's College – Main", time: '8:00 AM – 3:45 PM', brk: '0:30', hrs: '7.25', type: 'Billable', status: 'Pending', inv: 'Blocked' },
