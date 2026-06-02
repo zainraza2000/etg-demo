@@ -58,14 +58,20 @@ function ServiceTicketsScreen({ onNewTicket }) {
     <div>
       <PageHeader title="Service Tickets" description="Track, manage and resolve customer service requests"
         actions={<>
-          <Button variant="outline" icon="download">Export</Button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="download">Export</Button><UpcomingPill /></span>
           <Button variant="outline" icon="filter">Filters</Button>
           <Button variant="primary" icon="plus" onClick={onNewTicket}>New Ticket</Button>
         </>} />
       <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
         {TICKET_KPIS.map((k, i) => <TkKpiCard key={i} {...k} />)}
       </div>
-      <FilterBar search="Search tickets by ID, title, client, site, asset..." filters={['Status: Open, In Progress', 'Priority: All', 'Source: All', 'Client: All', 'Assigned To: All', 'More Filters']} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        {[['All', false], [`Needs Review (${TICKETS_NEEDS_REVIEW})`, true], ['Overdue', false], ['Unassigned', false], ['Recurring', true]].map(([l, up], i) =>
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 500, padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
+            background: i === 0 ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: i === 0 ? 'hsl(var(--primary))' : 'hsl(var(--foreground))', border: `1px solid ${i === 0 ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--border))'}` }}>
+            {l}{up && <UpcomingPill compact />}</span>)}
+      </div>
+      <FilterBar search="Search tickets by ID, title, client, site, asset..." filters={['Status: Open, In Progress', 'Priority: All', 'Source: All', 'Issue Type: All', 'Business Unit: All', 'Ownership Status: All', 'Client: All', 'Assigned To: All', 'More Filters']} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 330px', gap: 16, alignItems: 'start' }}>
         <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
@@ -81,13 +87,13 @@ function ServiceTicketsScreen({ onNewTicket }) {
                 return (
                   <tr key={t.id} onClick={() => setSelected(t.id)} style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent' }}>
                     <td style={{ padding: '11px 14px' }}><IdChip id={t.id} /></td>
-                    <td>{t.subject}{t.note && <div style={{ fontSize: 11.5, color: 'hsl(var(--destructive))', marginTop: 1 }}>{t.note}</div>}</td>
+                    <td>{t.subject}{t.note && <div style={{ fontSize: 11.5, color: 'hsl(var(--destructive))', marginTop: 1 }}>{t.note}</div>}<div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, flexWrap: 'wrap' }}><span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.6)', border: '1px solid hsl(var(--border))', padding: '0 6px', borderRadius: 999 }}>{t.issueType}</span>{t.fj && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontFamily: 'var(--font-mono)', color: 'hsl(var(--muted-foreground))' }}><Icon name="briefcase" size={9} />{t.fj}</span>}</div></td>
                     <td>{t.client}<div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{t.site}</div></td>
                     <td><span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12.5 }}>Assets ({t.assets})</span></td>
                     <td><PriorityBadge priority={t.priority} /></td>
                     <td><StatusBadge status={t.status} /></td>
                     <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Avatar name={t.assignee} size={24} /><span style={{ fontSize: 12.5 }}>{t.assignee}</span></span></td>
-                    <td style={{ fontSize: 12.5, color: t.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: t.overdue ? 600 : 400 }}>{t.due}<div style={{ fontSize: 11.5, color: t.overdue ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))', marginTop: 1 }}>{t.dueT}</div></td>
+                    <td style={{ fontSize: 12.5, color: t.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: t.overdue ? 600 : 400 }}>{t.due}<div style={{ fontSize: 11.5, marginTop: 1 }}><SiteTime time={t.dueT} zone={siteZoneFor(t.client)} small primaryColor={t.overdue ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))'} /></div></td>
                   </tr>
                 );
               })}
@@ -133,7 +139,11 @@ function TicketDetail({ ticket }) {
           <IdChip id={t.id} />
           {t.priority === 'High' && <span style={{ ...statusStyle('overdue'), padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>High Priority</span>}
         </div>
-        <div style={{ fontSize: 17, fontWeight: 700, margin: '8px 0 10px' }}>{t.subject}</div>
+        <div style={{ fontSize: 17, fontWeight: 700, margin: '8px 0 6px' }}>{t.subject}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          <span style={{ ...statusStyle('draft'), padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 600 }}>{t.subjectType}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.6)', border: '1px solid hsl(var(--border))', padding: '1px 8px', borderRadius: 999 }}><Icon name="tag" size={11} />{t.issueType}</span>
+        </div>
         {/* read-only status area — changes only via action buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'hsl(var(--muted) / 0.45)', borderRadius: 8, marginBottom: 4 }}>
           <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Status</span>
@@ -142,45 +152,60 @@ function TicketDetail({ ticket }) {
           <span style={{ marginLeft: 'auto' }}><ReadOnlyTag /></span>
         </div>
         <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 5 }}>
-          <KV k="Client"><span style={{ color: 'hsl(var(--primary))' }}>{t.client}</span></KV>
-          <KV k="Site">{t.site}</KV>
+          <KV k="Client"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="CLI-000023" /><span style={{ color: 'hsl(var(--primary))' }}>{t.client}</span></span></KV>
+          <KV k="Site"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="SITE-000050" />{t.site}</span></KV>
           <KV k="Location">{t.location || t.assetLoc}</KV>
           <KV k="Source">{t.source}</KV>
-          <KV k="Asset"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>Assets ({t.assets})</span><PreviewPill /></span></KV>
-          <KV k="Created">{t.created}, {t.createdT}</KV>
-          <KV k="Due Date"><span style={{ color: t.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: t.overdue ? 600 : 500 }}>{t.due}, {t.dueT}</span></KV>
-          <KV k="Assigned To"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Avatar name={t.assignee} size={20} />{t.assignee}</span></KV>
+          <KV k="Issue Type">{t.issueType}</KV>
+          <KV k="Reporter"><span style={{ color: 'hsl(var(--muted-foreground))' }}>{t.createdBy || 'Site contact'}</span></KV>
+          <KV k="Reporter Phone"><span style={{ color: 'hsl(var(--muted-foreground))' }}>0412 345 678</span></KV>
+          <KV k="Reporter Email"><span style={{ color: 'hsl(var(--muted-foreground))' }}>contact@client.com.au</span></KV>
+          <KV k="Asset"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="EG-0042" /><span style={{ color: 'hsl(var(--muted-foreground))' }}>Assets ({t.assets})</span><PreviewPill /></span></KV>
+          <KV k="Linked Project">{t.prj ? <IdChip id={t.prj} /> : <PendingDash />}</KV>
+          <KV k="Cost Centre">{t.cc ? <IdChip id={t.cc} /> : <PendingDash />}</KV>
+          <KV k="Created"><span>{t.created}, <SiteTime time={t.createdT} zone={siteZoneFor(t.client)} oneline /></span></KV>
+          <KV k="Due Date"><span style={{ color: t.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: t.overdue ? 600 : 500 }}>{t.due}, <SiteTime time={t.dueT} zone={siteZoneFor(t.client)} oneline primaryColor={t.overdue ? 'hsl(var(--destructive))' : undefined} /></span></KV>
+          <KV k="Assigned To"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IdChip id="USR-000012" /><Avatar name={t.assignee} size={20} />{t.assignee}</span></KV>
         </div>
-        {/* ownership / routing — auto-router not live */}
+        {/* ownership / routing — BU + status real (read-only); only Likely Owner is auto-suggested */}
         <div style={{ marginTop: 11 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 600 }}>Ownership &amp; Routing</span><UpcomingPill /></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 600 }}>Ownership &amp; Routing</span></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'hsl(var(--muted-foreground))' }}>Business Unit<ReadOnlyTag compact /></span><span style={{ fontWeight: 600 }}>{t.bu}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'hsl(var(--muted-foreground))' }}>Ownership Status<ReadOnlyTag compact /></span><span style={{ ...statusStyle(t.ownership === 'Needs Review' ? 'medium' : 'active'), padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>{t.ownership}</span></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}><span style={{ fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>Likely Owner (auto-suggested)</span><UpcomingPill /></div>
           <div style={{ border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 9, padding: '11px 12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 4 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>Likely Owner</span><span style={{ fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>—</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>Business Unit</span><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}><Icon name="loader" size={12} />Calculating…</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>Suggested routing</span><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}><Icon name="loader" size={12} />Calculating…</span></div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 18, borderBottom: '1px solid hsl(var(--border))', margin: '12px -15px 0', padding: '0 15px' }}>
-          <TicketTab label="Details" active /><TicketTab label={`Assets (${t.assets})`} tag={<PreviewPill />} /><TicketTab label="Timeline" /><TicketTab label="Notes" /><TicketTab label="Files" />
+        <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid hsl(var(--border))', margin: '12px -15px 0', padding: '0 15px', flexWrap: 'wrap' }}>
+          <TicketTab label="Details" active /><TicketTab label={`Assets (${t.assets})`} tag={<PreviewPill />} /><TicketTab label="Timeline" /><TicketTab label="Notes" /><TicketTab label="Files" /><TicketTab label="Customer Messages" tag={<UpcomingPill />} /><TicketTab label="Related Jobs" tag={<UpcomingPill />} />
         </div>
         <div style={{ paddingTop: 13 }}>
           <DetailBlock label="Description">{t.desc || 'No description provided.'}</DetailBlock>
           {t.impact && <div style={{ marginTop: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
               <span style={{ fontSize: 12, fontWeight: 600 }}>Customer Impact</span>
-              <span style={{ ...statusStyle('overdue'), padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 600 }}>{t.impact}</span></div>
+              {t.impact === 'No impact' ? <PendingDash /> : <span style={{ ...statusStyle(t.impact === 'Safety risk' ? 'overdue' : t.impact === 'Site disrupted' ? 'medium' : 'active'), padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 600 }}>{t.impact}</span>}</div>
             <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>{t.impactNote}</div></div>}
-          {t.internal && <DetailBlock label="Internal Notes" style={{ marginTop: 12 }}>{t.internal}</DetailBlock>}
+          {t.internal && <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}><span style={{ fontSize: 12, fontWeight: 600 }}>Notes</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.7)', border: '1px solid hsl(var(--border))', padding: '1px 7px', borderRadius: 999 }}>Internal only</span></div>
+            <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>{t.internal}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '10px 0 4px' }}><span style={{ fontSize: 12, fontWeight: 600 }}>Customer-visible note</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'hsl(var(--success))', background: 'hsl(var(--success-subtle))', border: '1px solid hsl(var(--success) / 0.3)', padding: '1px 7px', borderRadius: 999 }}>Customer-visible</span><PreviewPill /></div>
+            <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', lineHeight: 1.5 }}>Technician booked for first available window — we'll confirm the ETA by phone.</div></div>}
           {t.job && <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Linked Job</div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Job Created</div>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id={t.job.split(' – ')[0]} /><span style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>{t.job.split(' – ')[1]}</span></span></div>}
         </div>
       </Panel>
       <Panel title="Quick Actions" style={{ marginTop: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {[['refresh-cw', 'Update Status'], ['message-square-plus', 'Add Note'], ['upload', 'Upload File'], ['briefcase', 'Create Job'], ['arrow-up-circle', 'Escalate Ticket'], ['check-circle-2', 'Close Ticket']].map(([ic, l], i) =>
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 10px', fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: 'pointer' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--primary-subtle))'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-              <Icon name={ic} size={14} />{l}</div>)}
+          {[['refresh-cw', 'Update Status', false], ['message-square-plus', 'Add Note', false], ['upload', 'Upload File', false], ['briefcase', 'Create Job', false], ['arrow-up-circle', 'Escalate Ticket', true], ['check-circle-2', 'Close Ticket', false]].map(([ic, l, up], i) =>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 10px', fontSize: 12.5, fontWeight: 500, color: up ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))', cursor: 'pointer' }}>
+              <Icon name={ic} size={14} />{l}{up && <span style={{ marginLeft: 'auto' }}><UpcomingPill compact /></span>}</div>)}
         </div>
       </Panel>
     </div>

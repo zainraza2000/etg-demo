@@ -2,12 +2,15 @@
 const { useState: useStateMt } = React;
 
 function mtStatusStyle(s) {
-  const map = { 'Potential Match': 'active', 'Pending Review': 'warning', 'Unmatched Bank': 'draft', 'Unmatched Invoice': 'draft', 'Exception': 'overdue', 'Matched': 'complete' };
+  const map = { 'Potential Match': 'active', 'Pending Review': 'warning', 'Unmatched Bank': 'draft', 'Unmatched Invoice': 'draft', 'Exception': 'overdue', 'Matched': 'complete', 'Partial Payment': 'warning', 'Ready for Reconciliation': 'complete', 'Match Rejected': 'overdue' };
   const v = `var(--status-${map[s] || 'draft'})`;
   return { background: `hsl(${v} / 0.13)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.30)` };
 }
 function MtPill({ status }) {
   return <span style={{ ...mtStatusStyle(status), display: 'inline-flex', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{status}</span>;
+}
+function ExTypeChip({ type }) {
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: 'hsl(var(--destructive))', background: 'hsl(var(--destructive-subtle))', border: '1px solid hsl(var(--destructive) / 0.25)', padding: '1px 7px', borderRadius: 999, marginTop: 3 }}><Icon name="alert-triangle" size={10} />{type}</span>;
 }
 function MtConf({ conf }) {
   if (conf === null) return <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>—</span>;
@@ -37,7 +40,10 @@ function InvoiceMatchingScreen() {
     <div>
       <PageHeader title="Invoice Matching — Bank Feed" description="Match supplier invoices to bank transactions before reconciliation. Auto-matched, never auto-approved."
         actions={<>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="refresh-cw">Sync Bank Feed</Button><UpcomingPill /></span>
+          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="refresh-cw">Sync Bank Feed</Button><UpcomingPill /></span>
+            <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', display: 'inline-flex', alignItems: 'center', gap: 5 }}>Last synced — · Provider: pending<PreviewPill /></span>
+          </span>
           <Button variant="outline" icon="upload">Upload Invoice</Button>
           <Button variant="primary" icon="wand-2">Run Auto-Match</Button>
         </>} />
@@ -68,7 +74,7 @@ function InvoiceMatchingScreen() {
             const isSel = selected === r.id;
             const noBank = r.bankAmt === '—'; const noInv = r.invAmt === '—';
             return <div key={r.id} onClick={() => setSelected(r.id)} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 30px 1fr 96px', borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent', alignItems: 'center' }}>
-              <div style={{ padding: '11px 12px' }}><MtPill status={r.status} />{r.reason && <div style={{ fontSize: 10, color: 'hsl(var(--destructive))', marginTop: 3, lineHeight: 1.3 }}>{r.reason}</div>}</div>
+              <div style={{ padding: '11px 12px' }}><MtPill status={r.status} />{r.exType && <ExTypeChip type={r.exType} />}{r.reason && <div style={{ fontSize: 10, color: 'hsl(var(--destructive))', marginTop: 3, lineHeight: 1.3 }}>{r.reason}</div>}</div>
               <div style={{ padding: '11px 12px', opacity: noBank ? 0.4 : 1 }}>
                 {noBank ? <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>No bank transaction</span> : <>
                   <div style={{ fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{r.bankDesc}</div>
@@ -81,7 +87,9 @@ function InvoiceMatchingScreen() {
                 {noInv ? <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>No invoice — {r.action === 'request' ? 'request from supplier' : 'awaiting'}</span> : <>
                   <div style={{ fontSize: 12.5, fontWeight: 600 }}>{r.supplier}</div>
                   <div style={{ fontSize: 11, color: 'hsl(var(--primary))' }}>{r.inv} · {r.invDate}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2, color: r.mismatch ? 'hsl(var(--destructive))' : 'inherit' }}>{r.invAmt}</div></>}
+                  <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2, color: r.mismatch ? 'hsl(var(--destructive))' : 'inherit' }}>{r.invAmt}</div>
+                  {r.split && <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="git-merge" size={10} />Split match · 2 invoices<PreviewPill /></div>}
+                  {r.partial && <div style={{ fontSize: 10, color: 'hsl(var(--warning))', marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="circle-dollar-sign" size={10} />Partial — {r.bankAmt} of {r.invAmt}<PreviewPill /></div>}</>}
               </div>
               <div style={{ padding: '11px 12px' }}><MtConf conf={r.conf} /></div>
             </div>;
@@ -103,7 +111,7 @@ function InvoiceMatchingScreen() {
         <Panel title="Recent Activity">
           {MATCH_ACTIVITY.map(([label, time, ic, c], i) => <div key={i} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: i < MATCH_ACTIVITY.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
             <Icon name={ic} size={15} color={c} style={{ marginTop: 1, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}><div style={{ fontSize: 12.5 }}>{label}</div><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{time}</div></div></div>)}
+            <div style={{ flex: 1 }}><div style={{ fontSize: 12.5 }}>{label}</div><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{time} <span style={{ fontWeight: 500 }}>· Brisbane time</span></div></div></div>)}
         </Panel>
       </div>
     </div>
@@ -154,6 +162,12 @@ function MatchDetail({ row: r }) {
         {!noInv && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
           <Icon name="scan-line" size={13} />Extracted by OCR · <span style={{ color: 'hsl(var(--primary))', fontWeight: 500 }}>Edit extracted data</span><UpcomingPill /></div>}
 
+        {r.gstMismatch && <div style={{ marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'hsl(var(--warning-subtle))', border: '1px solid hsl(var(--warning) / 0.3)', borderRadius: 8, padding: '8px 11px', fontSize: 12, color: 'hsl(var(--warning))', fontWeight: 600 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name="percent" size={15} />GST mismatch — invoice GST ≠ 10% of subtotal</span><ReadOnlyTag /></div>}
+        {!noInv && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 9, padding: '7px 10px', background: 'hsl(var(--muted) / 0.45)', borderRadius: 8 }}>
+          <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="scan-line" size={13} />OCR confidence</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>—</span><ReadOnlyTag /></span></div>}
+
         {r.mismatch && <div style={{ marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'hsl(var(--destructive-subtle))', border: '1px solid hsl(var(--destructive) / 0.3)', borderRadius: 8, padding: '8px 11px', fontSize: 12, color: 'hsl(var(--destructive))', fontWeight: 600 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name="alert-triangle" size={15} />Amount mismatch — {r.bankAmt} vs {r.invAmt}</span><ReadOnlyTag /></div>}
 
@@ -163,7 +177,8 @@ function MatchDetail({ row: r }) {
           <textarea placeholder={needsOverride ? 'Reason for overriding this match…' : 'Add a note for this decision…'} style={{ width: '100%', height: 52, border: `1px solid ${needsOverride ? 'hsl(var(--destructive) / 0.4)' : 'hsl(var(--input))'}`, borderRadius: 8, padding: 10, boxSizing: 'border-box', fontSize: 12.5, fontFamily: 'inherit', resize: 'none', background: 'hsl(var(--card))' }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: 11 }}>
-          {noInv && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="primary" icon="mail" style={{ flex: 1, justifyContent: 'center' }}>Request Invoice from Supplier</Button><UpcomingPill /></span>}
+          {noInv && <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 5 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="primary" icon="mail" style={{ flex: 1, justifyContent: 'center' }}>Request Invoice from Supplier</Button><UpcomingPill /></span>{r.supplierContactMissing && <span style={{ fontSize: 11, color: 'hsl(var(--warning))', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="alert-triangle" size={12} />Supplier contact missing<PreviewPill /></span>}</span>}
+          {r.status === 'Ready for Reconciliation' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="primary" icon="arrow-right" style={{ flex: 1, justifyContent: 'center' }}>Move to Reconciliation</Button><UpcomingPill /></span>}
           {noBank && <Button variant="outline" icon="search" style={{ justifyContent: 'center' }}>Find Matching Transaction</Button>}
           {canConfirm && <div style={{ display: 'flex', gap: 9 }}>
             <Button variant="primary" icon="check" style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))' }}>{needsOverride ? 'Override & Confirm' : 'Confirm Match'}</Button>

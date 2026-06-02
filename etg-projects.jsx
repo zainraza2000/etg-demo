@@ -42,10 +42,10 @@ function CostCentreRow({ cc }) {
         </div>
       </td>
       <td style={{ fontSize: 13 }}>{cc.budget}</td>
-      <td style={{ fontSize: 13 }}><PendingDash /></td>
-      <td style={{ fontSize: 13 }}><PendingDash /></td>
-      <td><PendingDash /></td>
-      <td><PendingDash /></td>
+      <td style={{ fontSize: 13 }}>{cc.actual}</td>
+      <td style={{ fontSize: 13, fontWeight: 600, color: cc.margin < 0 ? 'hsl(var(--destructive))' : cc.margin < 10 ? 'hsl(var(--warning))' : 'hsl(var(--success))' }}>{cc.margin}%</td>
+      <td><RiskBadge risk={cc.risk} /></td>
+      <td><ProgressBar value={cc.progress} width={88} color={cc.progress >= 100 ? 'hsl(var(--success))' : 'hsl(var(--primary))'} /></td>
       <td><StatusBadge status={cc.status} /></td>
     </tr>
   );
@@ -97,7 +97,7 @@ function ProjectsScreen({ onNewProject }) {
                 const isSel = selected === p.id;
                 return (
                   <React.Fragment key={p.id}>
-                    <tr onClick={() => setSelected(p.id)} style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent' }}>
+                    <tr onClick={() => setSelected(p.id)} style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent', boxShadow: p.margin < 10 ? 'inset 3px 0 0 hsl(var(--destructive))' : 'none' }}>
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           {p.costCentres.length > 0
@@ -112,9 +112,9 @@ function ProjectsScreen({ onNewProject }) {
                       <td>{p.client}<div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{p.loc}</div></td>
                       <td><StatusBadge status={p.status} /></td>
                       <td style={{ fontWeight: 500 }}>{p.value}</td>
-                      <td><PendingDash /></td>
-                      <td><PendingDash /></td>
-                      <td style={{ fontSize: 13 }}>{p.end}</td>
+                      <td style={{ fontWeight: 600, color: p.margin < 0 ? 'hsl(var(--destructive))' : p.margin < 10 ? 'hsl(var(--warning))' : 'hsl(var(--success))' }}>{p.margin}%</td>
+                      <td><HealthChip score={p.health} /></td>
+                      <td style={{ fontSize: 13, color: p.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: p.overdue ? 600 : 400 }}>{p.end}{p.overdue && <div style={{ fontSize: 10.5 }}>Overdue</div>}</td>
                       <td><Icon name="more-horizontal" size={18} color="hsl(var(--muted-foreground))" /></td>
                     </tr>
                     {isExp && <>
@@ -159,6 +159,7 @@ function QuickAction({ label, tag, muted }) {
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{label}{tag}</span><Icon name="arrow-right" size={15} /></div>;
 }
 function ProjectDetail({ project }) {
+  const openTickets = TICKETS.filter((t) => t.client === project.client && t.status !== 'Resolved').length;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 0 }}>
       <Panel>
@@ -171,8 +172,8 @@ function ProjectDetail({ project }) {
         <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 6 }}>
           <KV k="Client"><span style={{ color: 'hsl(var(--primary))' }}>{project.client}</span></KV>
           <KV k="Project Manager"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Avatar name={project.pm} size={20} />{project.pm}</span></KV>
-          <KV k="Service Type" tag={<ReadOnlyTag />}>{project.serviceType}</KV>
-          <KV k="Site Location">{project.loc}</KV>
+          <KV k="Service Type">{project.serviceType}</KV>
+          <KV k="Site Location"><span>{project.loc} <span style={{ color: 'hsl(var(--muted-foreground))' }}>· {siteZoneFor(project.client)}</span></span></KV>
           <KV k="Start Date">{project.start}</KV>
           <KV k="End Date">{project.end}</KV>
           <KV k="Contract Value">{project.value}</KV>
@@ -185,6 +186,7 @@ function ProjectDetail({ project }) {
         <QuickAction label="View Cost Centres" />
         <QuickAction label="Create New Cost Centre" />
         <QuickAction label="Project Financials" tag={<UpcomingPill />} muted />
+        <QuickAction label="Project Documents" tag={<UpcomingPill />} muted />
         <QuickAction label="Project Settings" />
       </Panel>
       <Panel title="Key Indicators">
@@ -195,7 +197,7 @@ function ProjectDetail({ project }) {
         </div>
         <div style={{ marginBottom: 12 }}><CalculatingCard note="The invoice-readiness engine isn't live yet." /></div>
         <Indicator icon="dollar-sign" label="Uninvoiced Amount" tag={<ReadOnlyTag />} value={<PendingDash />} />
-        <Indicator icon="wrench" label="Open Service Tickets" tag={<PreviewPill />} value={<span style={{ color: 'hsl(var(--muted-foreground))' }}>— from ST-</span>} />
+        <Indicator icon="wrench" label="Open Service Tickets" tag={<PreviewPill />} value={<span style={{ color: 'hsl(var(--muted-foreground))' }}>{openTickets} open</span>} />
         <Indicator icon="check-circle-2" label="Pending Approvals" tag={<UpcomingPill />} value={<PendingDash />} />
         <Indicator icon="alert-triangle" label="Offline Assets" tag={<UpcomingPill />} value={<PendingDash />} />
       </Panel>

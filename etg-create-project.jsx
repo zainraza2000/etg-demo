@@ -8,6 +8,11 @@ function CpField({ label, req, hint, tag, children }) {
     {hint && <span style={{ fontSize: 11.5, color: 'hsl(var(--primary))', fontWeight: 500, cursor: 'pointer' }}>{hint}</span>}</div>{children}</div>;
 }
 function CpText({ value, ph }) { return <input defaultValue={value} placeholder={ph} style={cpInput} />; }
+// a selected related-record shown as a locked id chip + name, still a picker (chevron)
+function CpSelected({ id, name }) {
+  return <div style={{ ...cpInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+    <IdChip id={id} /><span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span><Icon name="chevron-down" size={15} color="hsl(var(--muted-foreground))" /></div>;
+}
 // locked, system/engine-computed value (never an input)
 function CpReadOnly({ value }) {
   return <div style={{ ...cpInput, display: 'flex', alignItems: 'center', gap: 8, background: 'hsl(var(--muted) / 0.45)', color: 'hsl(var(--muted-foreground))', cursor: 'default' }}>
@@ -83,6 +88,14 @@ function CreateProjectScreen({ onClose }) {
         </div>
       </div>
 
+      {/* created-from-quote origin banner */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'hsl(258 80% 97%)', border: '1px solid hsl(258 70% 88%)', borderRadius: 9, padding: '9px 13px', marginBottom: 14 }}>
+        <Icon name="file-check-2" size={15} color="hsl(258 60% 50%)" />
+        <span style={{ fontSize: 12.5, color: 'hsl(var(--foreground))' }}>Created from accepted quote</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono)', fontSize: 11.5, fontWeight: 600, color: 'hsl(258 60% 50%)', background: 'hsl(258 80% 99%)', border: '1px solid hsl(258 70% 88%)', borderRadius: 999, padding: '1px 8px' }}>Q-002184</span>
+        <span style={{ marginLeft: 'auto' }}><UpcomingPill /></span>
+      </div>
+
       {/* tab bar */}
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid hsl(var(--border))', marginBottom: 18, overflowX: 'auto' }}>
         {tabs.map((t) => {
@@ -96,14 +109,14 @@ function CreateProjectScreen({ onClose }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
         <CpPanel title="Core Project Details">
           <CpField label="Project Name" req><CpText ph="Enter project name" /></CpField>
-          <CpField label="Description"><CpText ph="One-line summary of the project" /></CpField>
+          <CpField label="Description"><div><CpText ph="One-line summary of the project" /><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>Short summary shown in lists — longer detail goes in Project Notes below.</div></div></CpField>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <CpField label="Client" req><div style={{ position: 'relative' }}><input placeholder="Search and select client" style={{ ...cpInput, paddingRight: 30 }} /><span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}><Icon name="search" size={15} color="hsl(var(--muted-foreground))" /></span></div></CpField>
-            <CpField label="Primary Site / Location" req hint="+ New"><CpSelect ph="Start typing site name" /></CpField>
+            <CpField label="Client" req><CpSelected id="CLI-000023" name="ABC Corporate" /></CpField>
+            <CpField label="Primary Site / Location" req hint="+ New"><CpSelected id="SITE-000050" name="Sydney Office — Level 1" /></CpField>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Simpro ID / External Ref"><CpText ph="e.g. 123456 or EX-001" /></CpField>
-            <CpField label="Project Owner / Manager" req><CpSelect ph="Select owner" /></CpField>
+            <CpField label="Project Owner / Manager" req><CpSelected id="USR-000012" name="John Manager" /></CpField>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Status" tag={<ReadOnlyTag />}><CpBadgeRO status="Quoted" /></CpField>
@@ -124,9 +137,9 @@ function CreateProjectScreen({ onClose }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Quoted Value (AUD)" req><CpMoney value="0.00" /></CpField>
             <CpField label="Target Margin (0–1)" req><CpText value="0.30" /></CpField>
-            <CpField label="Cost Budget (AUD)"><CpMoney value="0.00" /></CpField>
-            <CpField label="Labour Budget (AUD)"><CpMoney value="0.00" /></CpField>
-            <CpField label="Materials Budget (AUD)"><CpMoney value="0.00" /></CpField>
+            <CpField label="Cost Budget (AUD)" tag={<UpcomingPill />}><CpMuted value="0.00" /></CpField>
+            <CpField label="Labour Budget (AUD)" tag={<UpcomingPill />}><CpMuted value="0.00" /></CpField>
+            <CpField label="Materials Budget (AUD)" tag={<UpcomingPill />}><CpMuted value="0.00" /></CpField>
             <CpField label="Approved Value (AUD)" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
             <CpField label="Variation Value (AUD)" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
             <CpField label="Retention / Holdback" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
@@ -172,9 +185,9 @@ function CreateProjectScreen({ onClose }) {
           <CpField label="Assets Affected" tag={<PreviewPill />}><div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>None linked yet</div></CpField>
           <CpField label="Asset Notes"><CpArea ph="Enter asset impact details" /></CpField>
         </CpPanel>
-        <CpPanel title="Team & Resources">
+        <CpPanel title="Team & Resources" tag={<UpcomingPill />}>
           <CpField label="Internal Team" hint="+ Add"><CpSelect ph="Select team members" /></CpField>
-          <CpField label="Labour Hours (Budget)"><CpText value="0.00" /></CpField>
+          <CpField label="Labour Hours (Budget)" tag={<PreviewPill />}><CpMuted value="0.00" /></CpField>
           <CpField label="Equipment Required" hint="+ Add"><CpSelect ph="Select equipment" /></CpField>
           <CpField label="Special Requirements"><CpArea ph="Enter special requirements" /></CpField>
         </CpPanel>

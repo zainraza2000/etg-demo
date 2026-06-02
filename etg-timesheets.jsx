@@ -31,9 +31,34 @@ function TsKpiCard({ title, value, sub, icon, color }) {
   );
 }
 
+// ---- Invoice readiness (engine-derived, read-only) ----
+const INV_STYLE = {
+  'Ready to invoice': 'complete', 'Invoiced ✓': 'invoiced', 'In review': 'active', 'Not ready': 'draft', 'Blocked': 'overdue',
+};
+function deriveInv(e) {
+  if (!e.type) return null;                       // empty placeholder row
+  if (e.inv) return e.inv;                        // explicit
+  if (e.type === 'Non-Billable') return '—';      // nothing to invoice
+  if (e.status === 'Approved') return 'Ready to invoice';
+  if (e.status === 'Rejected') return 'Blocked';
+  return 'Not ready';                             // Pending billable
+}
+function InvoicePill({ value }) {
+  if (!value || value === '—') return <PendingDash />;
+  const key = INV_STYLE[value] || 'draft';
+  const v = `var(--status-${key})`;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 600, whiteSpace: 'nowrap',
+    background: `hsl(${v} / 0.10)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.25)`, opacity: 0.85 }}>{value}</span>;
+}
+// sum "8.50"-style hours strings
+function sumHrs(entries) {
+  const n = entries.reduce((acc, e) => acc + (parseFloat(e.hrs) || 0), 0);
+  return n.toFixed(2);
+}
+
 function TimesheetsScreen() {
-  const [selected, setSelected] = useStateTs('TECH-002');
-  const [expanded, setExpanded] = useStateTs('TECH-001');
+  const [selected, setSelected] = useStateTs('USR-000013');
+  const [expanded, setExpanded] = useStateTs('USR-000012');
   const sheet = TIMESHEETS.find((t) => t.id === selected);
 
   return (
@@ -84,33 +109,54 @@ function TimesheetsScreen() {
                           <div><div style={{ fontWeight: 600 }}>{t.tech}</div><div style={{ marginTop: 3 }}><IdChip id={t.usr} /></div></div>
                         </div>
                       </td>
-                      <td style={{ fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>Total: {t.total} hrs</td>
+                      <td style={{ fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><PreviewPill />Total: {t.total} hrs</span></td>
                       <td style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12.5 }}>Billable: {t.billable} hrs ({t.billablePct}%)</td>
-                      <td style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12.5 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>Non-Billable: {t.nonBillable} hrs ({t.nonBillablePct}%)<PreviewPill /></span></td>
+                      <td style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12.5 }}>Non-Billable: {t.nonBillable} hrs ({t.nonBillablePct}%)</td>
                       <td style={{ textAlign: 'right', padding: '11px 16px' }}><TsPill status={t.status} /></td>
                     </tr>
                     {isExp && <tr>
                       <td colSpan={6} style={{ padding: 0, background: 'hsl(var(--card))' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                           <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                            {['Date', 'Job / Task', 'Location', 'Start / End Time', 'Breaks', 'Hours', 'Type', 'Status', ''].map((h, i) =>
+                            {['Date', 'Job / Task', 'Location', 'Start / End Time', 'Breaks', 'Hours', 'Type', 'Status', 'Invoice', ''].map((h, i) =>
                               <th key={i} style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11, color: 'hsl(var(--muted-foreground))', padding: i === 0 ? '8px 16px 8px 52px' : '8px 12px' }}>
-                                {h === 'Location' || h === 'Hours' || h === 'Type' || h === 'Status' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>{h}<ReadOnlyTag /></span> : h}</th>)}
+                                {h === 'Location' || h === 'Hours' || h === 'Type' || h === 'Status' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>{h}<ReadOnlyTag /></span>
+                                  : h === 'Invoice' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>{h}<ReadOnlyTag /></span> : h}</th>)}
                           </tr></thead>
                           <tbody>
-                            {t.entries.map((e, i) => e.loc === '' && e.job === '—'
-                              ? <tr key={i} style={{ borderBottom: i < t.entries.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}><td style={{ padding: '9px 16px 9px 52px', color: 'hsl(var(--muted-foreground))' }}>{e.day}</td><td colSpan={8} style={{ color: 'hsl(var(--muted-foreground))' }}>—</td></tr>
-                              : <tr key={i} style={{ borderBottom: i < t.entries.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
-                                <td style={{ padding: '9px 16px 9px 52px' }}>{e.day}</td>
-                                <td style={{ padding: '9px 12px', color: e.job.startsWith('FJ') ? 'hsl(var(--primary))' : 'inherit', fontWeight: e.job.startsWith('FJ') ? 500 : 400 }}>{e.job}</td>
-                                <td style={{ padding: '9px 12px', color: 'hsl(var(--muted-foreground))' }}>{e.loc}</td>
-                                <td style={{ padding: '9px 12px' }}>{e.time}</td>
-                                <td style={{ padding: '9px 12px', color: 'hsl(var(--muted-foreground))' }}>{e.brk}</td>
-                                <td style={{ padding: '9px 12px', fontWeight: 600 }}>{e.hrs}</td>
-                                <td style={{ padding: '9px 12px' }}><TypePill type={e.type} /></td>
-                                <td style={{ padding: '9px 12px' }}><TsPill status={e.status} /></td>
-                                <td style={{ padding: '9px 12px' }}><Icon name="more-horizontal" size={16} color="hsl(var(--muted-foreground))" /></td>
-                              </tr>)}
+                            {(() => {
+                              const real = t.entries.filter((e) => e.type);
+                              const empty = t.entries.filter((e) => !e.type);
+                              // group real entries by day, preserving first-seen day order
+                              const days = []; const byDay = {};
+                              real.forEach((e) => { if (!byDay[e.day]) { byDay[e.day] = []; days.push(e.day); } byDay[e.day].push(e); });
+                              const rows = [];
+                              days.forEach((day) => {
+                                const lines = byDay[day];
+                                const multi = lines.length > 1;
+                                if (multi) rows.push(
+                                  <tr key={'sub-' + day} style={{ background: 'hsl(var(--muted) / 0.4)' }}>
+                                    <td style={{ padding: '6px 16px 6px 52px', fontWeight: 600, fontSize: 11.5 }}>{day} · {sumHrs(lines)}h total</td>
+                                    <td colSpan={9} style={{ padding: '6px 12px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{lines.length} jobs</td>
+                                  </tr>);
+                                lines.forEach((e, k) => rows.push(
+                                  <tr key={day + k} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+                                    <td style={{ padding: '9px 16px 9px 52px', color: multi ? 'hsl(var(--muted-foreground))' : 'inherit' }}>{multi ? '' : e.day}</td>
+                                    <td style={{ padding: '9px 12px', color: e.job.startsWith('FJ') ? 'hsl(var(--primary))' : 'inherit', fontWeight: e.job.startsWith('FJ') ? 500 : 400 }}>{e.job}</td>
+                                    <td style={{ padding: '9px 12px', color: 'hsl(var(--muted-foreground))' }}>{e.loc}</td>
+                                    <td style={{ padding: '9px 12px' }}><SiteTime time={e.time} zone={siteZoneFor(e.loc)} small /></td>
+                                    <td style={{ padding: '9px 12px', color: 'hsl(var(--muted-foreground))' }}>{e.brk}</td>
+                                    <td style={{ padding: '9px 12px', fontWeight: 600 }}>{e.hrs}</td>
+                                    <td style={{ padding: '9px 12px' }}><TypePill type={e.type} /></td>
+                                    <td style={{ padding: '9px 12px' }}><TsPill status={e.status} /></td>
+                                    <td style={{ padding: '9px 12px' }}><InvoicePill value={deriveInv(e)} /></td>
+                                    <td style={{ padding: '9px 12px' }}><Icon name="more-horizontal" size={16} color="hsl(var(--muted-foreground))" /></td>
+                                  </tr>));
+                              });
+                              empty.forEach((e, k) => rows.push(
+                                <tr key={'empty' + k}><td style={{ padding: '9px 16px 9px 52px', color: 'hsl(var(--muted-foreground))' }}>{e.day}</td><td colSpan={9} style={{ color: 'hsl(var(--muted-foreground))' }}>—</td></tr>));
+                              return rows;
+                            })()}
                           </tbody>
                         </table>
                       </td>

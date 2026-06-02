@@ -43,8 +43,11 @@ function AssetsScreen() {
           <Button variant="outline" icon="filter">Filters</Button>
           <Button variant="primary" icon="plus">Add Asset</Button>
         </>} />
-      <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
+      <div style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
         {ASSET_KPIS.map((k, i) => <AsKpiCard key={i} {...k} />)}
+      </div>
+      <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {ASSET_KPIS2.map((k, i) => <AsKpiCard key={i} {...k} />)}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <SearchInput placeholder="Search assets by name, type, serial, IP, location..." />
@@ -72,8 +75,8 @@ function AssetsScreen() {
                   <tr key={a.tag} onClick={() => setSelected(a.tag)} style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent' }}>
                     <td style={{ padding: '10px 8px 10px 14px' }}><input type="checkbox" /></td>
                     <td style={{ padding: '10px 12px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><DeviceTile type={a.type} />
-                      <div><IdChip id={a.eg} />
-                      <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>{a.model}</div></div></div></td>
+                      <div><div style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}><IdChip id={a.eg} /><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{a.model}</span></div></div></div></td>
                     <td style={{ fontSize: 12.5 }}>{a.type}</td>
                     <td>{a.client}<div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{a.site}</div></td>
                     <td>{a.loc}<div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{a.sub}</div></td>
@@ -88,7 +91,7 @@ function AssetsScreen() {
               })}
             </tbody>
           </table>
-          <div style={{ padding: '0 14px 8px' }}><Pagination label="Showing 1 to 10 of 1,248 assets" /></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 8px' }}><PreviewPill /><div style={{ flex: 1 }}><Pagination label="Showing 1 to 10 of 1,248 assets" /></div></div>
         </div>
         <AssetDetail asset={asset} />
       </div>
@@ -106,8 +109,9 @@ function AssetDetail({ asset: a }) {
           <DeviceTile type={a.type} size={56} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}><StatusPending /></div>
-            <IdChip id={a.eg} />
-            <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>{a.brand} · {a.model}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{a.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}><IdChip id={a.eg} /></div>
+            <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>{a.brand} · {a.model}</div>
           </div>
         </div>
         <div style={{ borderTop: '1px solid hsl(var(--border))', marginTop: 12, paddingTop: 5 }}>
@@ -116,11 +120,18 @@ function AssetDetail({ asset: a }) {
           <KV k="Asset Type">{a.type}</KV>
           <KV k="Criticality"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: critColor }} />{a.criticality}</span></KV>
           <KV k="IP Address">{a.ip}</KV>
+          <KV k="MAC Address">{a.mac ? <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{a.mac}</span> : <PendingDash />}</KV>
           <KV k="Brand / Manufacturer">{a.brand}</KV>
           <KV k="Serial Number">{a.serial || a.tag}</KV>
+          <KV k="Firmware" tag={<PreviewPill />}>{a.firmware ? a.firmware : <PendingDash />}</KV>
           <KV k="Asset Tag / ID"><IdChip id={a.eg} /></KV>
           <KV k="Install Date">{a.install || '—'}</KV>
+          <KV k="Installed Under (Job)">{a.fj ? <IdChip id={a.fj} /> : <PendingDash />}</KV>
           <KV k="Warranty Expiry"><span style={{ color: expired ? 'hsl(var(--destructive))' : 'inherit', fontWeight: expired ? 600 : 500 }}>{a.warranty} ({a.warrantyDays})</span></KV>
+          <KV k="Supplier Invoice (warranty proof)">{a.po ? <IdChip id={a.po} /> : <PendingDash />}</KV>
+          <KV k="Last Service" tag={<PreviewPill />}><PendingDash /></KV>
+          <KV k="Next Maintenance Due" tag={<PreviewPill />}><PendingDash /></KV>
+          <KV k="QR Code" tag={<UpcomingPill />}>{a.qr ? <span style={{ color: 'hsl(var(--muted-foreground))' }}>Tagged</span> : <span style={{ color: 'hsl(var(--destructive))' }}>Not tagged</span>}</KV>
           <KV k="Status" tag={<ReadOnlyTag />}><StatusPending /></KV>
         </div>
         {/* health — monitoring engine output, not live */}
@@ -146,15 +157,27 @@ function AssetDetail({ asset: a }) {
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name={ic} size={14} />{l}{up && <UpcomingPill compact />}</span><Icon name="arrow-right" size={14} /></div>)}
         </div>
       </Panel>
-      <Panel title="Recent Alerts" action={<UpcomingPill />}>
-        <AlertRow color="hsl(var(--destructive))" title="Camera offline" sub="Since 09:12 AM, 15 May 2025" />
-        <AlertRow color="hsl(var(--warning))" title="Intermittent connectivity" sub="4 events in last 24 hours" last />
+      <Panel title="Recent Alerts" action={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ReadOnlyTag /><UpcomingPill /></span>}>
+        {(a.alerts && a.alerts.length) ? a.alerts.map(([tier, title, when], i) => {
+          const c = tier === 'Critical' ? 'hsl(var(--destructive))' : tier === 'Warning' ? 'hsl(var(--warning))' : 'hsl(var(--info))';
+          return <div key={i} style={{ display: 'flex', gap: 9, padding: '7px 0', borderBottom: i < a.alerts.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, marginTop: 5, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 12.5, fontWeight: 500 }}>{title}</span><span style={{ fontSize: 9.5, fontWeight: 600, color: c, background: `${c.replace(')', ' / 0.12)')}`, padding: '0 6px', borderRadius: 999 }}>{tier}</span></div>
+            <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{when}</div></div></div>;
+        }) : <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', padding: '4px 0' }}>No active alerts for this asset.</div>}
+      </Panel>
+      <Panel title="More" action={<UpcomingPill />}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[['image', 'Photos'], ['shield-check', 'Warranty'], ['activity', 'Monitoring'], ['save', 'Programming Backups'], ['external-link', 'Open Device Web Link'], ['key', 'Credentials (vault ref)'], ['qr-code', 'Print / Regenerate QR'], ['eye', 'Customer Visibility']].map(([ic, l], i) =>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '8px 10px', fontSize: 12, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>
+              <Icon name={ic} size={14} />{l}</div>)}
+        </div>
       </Panel>
       <Panel title="Linked Items">
         <KV k="Project"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{a.project || 'PRJ-000142'}</span></KV>
-        <KV k="Cost Centre"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{a.cc || 'CC-000045'}</span></KV>
-        <KV k="Supplier"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>SUP-000019</span></KV>
-        <KV k="PO / Invoice"><span style={{ color: 'hsl(var(--primary))', display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono)' }}>SI-000088<Icon name="external-link" size={12} /></span></KV>
+        <KV k="Cost Centre"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{a.cc || a.costCentre || 'CC-000045'}</span></KV>
+        <KV k="Supplier"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{a.supplier || 'SUP-000019'}</span></KV>
+        <KV k="PO / Invoice">{a.po ? <span style={{ color: 'hsl(var(--primary))', display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono)' }}>{a.po}<Icon name="external-link" size={12} /></span> : <PendingDash />}</KV>
       </Panel>
     </div>
   );

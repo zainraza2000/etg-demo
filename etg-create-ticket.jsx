@@ -82,6 +82,14 @@ function CreateTicketScreen({ onClose }) {
         </div>
       </div>
 
+      {/* read-only system identity — set by the platform on creation */}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, background: 'hsl(var(--muted) / 0.5)', border: '1px solid hsl(var(--border))', borderRadius: 9, padding: '7px 13px', marginBottom: 14 }}>
+        {[['Status', 'New'], ['Owner', 'Evolution (placeholder)'], ['Type', 'Customer']].map(([k, v], i) =>
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <span style={{ color: 'hsl(var(--muted-foreground))' }}>{k}:</span><span style={{ fontWeight: 600 }}>{v}</span>{i < 2 && <span style={{ color: 'hsl(var(--border))', marginLeft: 8 }}>|</span>}</span>)}
+        <ReadOnlyTag />
+      </div>
+
       {/* Customer Summary band */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: '14px 6px', boxShadow: 'var(--shadow-sm)', marginBottom: 16 }}>
         <SummaryStat label="Customer" value="ABC Group" strong />
@@ -103,7 +111,7 @@ function CreateTicketScreen({ onClose }) {
           <div style={{ display: 'flex', gap: 22 }}>
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
               <CtField label="Customer" req><CtSelect value="ABC Corporate" sub="ABN: 12 345 678 910" /></CtField>
-              <CtField label="Contact Name" req><CtText value="Sarah Johnson" /></CtField>
+              <CtField label="Contact Name" req><div><div style={{ marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(var(--primary))', fontWeight: 500, cursor: 'pointer' }}><Icon name="user-search" size={12} />Link existing contact</div><CtText value="Sarah Johnson" /></div></CtField>
               <CtField label="Phone" req><CtText value="0412 345 678" /></CtField>
               <CtField label="Site" req><CtSelect value="Sydney Office" sub="123 George Street, Sydney NSW 2000" /></CtField>
               <CtField label="Email"><CtText value="sarah.johnson@abccorp.com.au" /></CtField>
@@ -146,7 +154,8 @@ function CreateTicketScreen({ onClose }) {
           <CtSection n="3" title="Additional Information">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
               <CtField label="Priority" req><CtSelect value="High" dot="hsl(var(--destructive))" /></CtField>
-              <CtField label="Due by"><CtSelect value="15 May 2026, 12:00 PM" icon="calendar-clock" /></CtField>
+              <CtField label="Job Classification"><CtSelect value="Service Call" icon="briefcase" /></CtField>
+              <CtField label="Due by"><div style={{ ...ctInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}><Icon name="calendar-clock" size={16} color="hsl(var(--muted-foreground))" /><span style={{ flex: 1 }}>15 May 2026, <SiteTime time="12:00 PM" zone="Australia/Sydney" oneline /></span><Icon name="chevron-down" size={16} color="hsl(var(--muted-foreground))" /></div></CtField>
               <CtField label="Customer Impact"><CtSelect value="Site disrupted" icon="alert-triangle" /></CtField>
               <CtField label="Affects Multiple Sites?"><CtSelect value="No" /></CtField>
               <CtField label="Preferred Contact Method"><CtSelect value="Phone Call" /></CtField>

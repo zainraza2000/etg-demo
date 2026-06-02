@@ -230,8 +230,8 @@ function UpcomingPill({ compact }) {
 function PreviewPill() {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: 'hsl(var(--warning))', background: 'hsl(var(--warning-subtle))', border: '1px solid hsl(var(--warning) / 0.3)', padding: '1px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}><Icon name="eye" size={10} />Preview</span>;
 }
-function ReadOnlyTag() {
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.7)', border: '1px solid hsl(var(--border))', padding: '1px 8px', borderRadius: 999, whiteSpace: 'nowrap' }}><Icon name="lock" size={11} />Read-only</span>;
+function ReadOnlyTag({ compact }) {
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: compact ? 10 : 10.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.7)', border: '1px solid hsl(var(--border))', padding: '1px 7px', borderRadius: 999, whiteSpace: 'nowrap' }}><Icon name="lock" size={compact ? 10 : 11} />Read-only</span>;
 }
 // Locked monospace identifier chip (e.g. PRJ-000142, ST-000077).
 function IdChip({ id, note }) {
