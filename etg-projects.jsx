@@ -2,14 +2,15 @@
 const { useState: useStateProj } = React;
 
 // KPI card with read-only (engine-computed) support.
-function ProjKpiCard({ title, value, sub, icon, color, readOnly }) {
+function ProjKpiCard({ title, value, sub, icon, color, readOnly, onClick, active }) {
+  const clickable = !!onClick;
   return (
-    <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
+    <div onClick={onClick} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
       <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: readOnly ? 0.55 : 1 }}><Icon name={icon} size={22} color="#fff" /></div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
         <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 6px', letterSpacing: '-0.02em', color: readOnly ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{readOnly ? '—' : value}</div>
-        {readOnly ? <ReadOnlyTag /> : <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: 'pointer' }}>{sub}</div>}
+        {readOnly ? <ReadOnlyTag /> : <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: clickable ? 'pointer' : 'default' }}>{sub}</div>}
       </div>
     </div>
   );
@@ -54,7 +55,28 @@ function CostCentreRow({ cc }) {
 function ProjectsScreen({ onNewProject }) {
   const [selected, setSelected] = useStateProj(PROJECTS[0].id);
   const [expanded, setExpanded] = useStateProj(PROJECTS[0].id);
-  const project = PROJECTS.find((p) => p.id === selected);
+  const [search, setSearch] = useStateProj('');
+  const [fStatus, setFStatus] = useStateProj('All');
+  const [fClient, setFClient] = useStateProj('All');
+  const [fPm, setFPm] = useStateProj('All');
+  const [marginRiskOnly, setMarginRiskOnly] = useStateProj(false);
+  const [page, setPage] = useStateProj(1);
+  const PER = 6;
+
+  const clients = ['All', ...Array.from(new Set(PROJECTS.map((p) => p.client)))];
+  const pms = ['All', ...Array.from(new Set(PROJECTS.map((p) => p.pm)))];
+  const q = search.trim().toLowerCase();
+  const filtered = PROJECTS.filter((p) =>
+    (!q || (p.name + ' ' + p.client + ' ' + p.id + ' ' + p.loc).toLowerCase().includes(q)) &&
+    (fStatus === 'All' || p.status === fStatus) &&
+    (fClient === 'All' || p.client === fClient) &&
+    (fPm === 'All' || p.pm === fPm) &&
+    (!marginRiskOnly || p.margin < 10));
+  const pages = Math.max(1, Math.ceil(filtered.length / PER));
+  const pg = Math.min(page, pages);
+  const visible = filtered.slice((pg - 1) * PER, pg * PER);
+  const reset = () => setPage(1);
+  const project = PROJECTS.find((p) => p.id === selected) || filtered[0] || PROJECTS[0];
 
   return (
     <div>
@@ -65,15 +87,17 @@ function ProjectsScreen({ onNewProject }) {
           <Button variant="primary" icon="plus" onClick={onNewProject}>New Project</Button>
         </>} />
       <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
-        {PROJ_KPIS.map((k, i) => <ProjKpiCard key={i} {...k} />)}
+        {PROJ_KPIS.map((k, i) => i === 4
+          ? <ProjKpiCard key={i} {...k} readOnly={false} value={String(PROJECTS.filter((p) => p.margin < 10).length)} sub="View list" onClick={() => { setMarginRiskOnly((v) => !v); reset(); }} active={marginRiskOnly} />
+          : <ProjKpiCard key={i} {...k} />)}
       </div>
 
       {/* filter bar — search + live filters; More Filters tagged Upcoming */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <SearchInput placeholder="Search projects by name, client, PRJ-…" />
-        <Select label="Status: Active" />
-        <Select label="Client: All" />
-        <Select label="Project Manager: All" />
+        <SearchInput placeholder="Search projects by name, client, PRJ-…" value={search} onChange={(v) => { setSearch(v); reset(); }} />
+        <Select label="Status" value={fStatus} options={['All', 'Quoted', 'Planned', 'In Progress', 'On Hold', 'Completed']} onChange={(v) => { setFStatus(v); reset(); }} />
+        <Select label="Client" value={fClient} options={clients} onChange={(v) => { setFClient(v); reset(); }} />
+        <Select label="Project Manager" value={fPm} options={pms} onChange={(v) => { setFPm(v); reset(); }} />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Select label="More Filters" /><UpcomingPill /></span>
       </div>
 
@@ -92,7 +116,8 @@ function ProjectsScreen({ onNewProject }) {
               <th style={{ verticalAlign: 'top' }}></th>
             </tr></thead>
             <tbody>
-              {PROJECTS.map((p) => {
+              {visible.length === 0 && <tr><td colSpan={8} style={{ padding: '26px 16px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No projects match your filters.</td></tr>}
+              {visible.map((p) => {
                 const isExp = expanded === p.id && p.costCentres.length > 0;
                 const isSel = selected === p.id;
                 return (
@@ -135,7 +160,7 @@ function ProjectsScreen({ onNewProject }) {
               })}
             </tbody>
           </table>
-          <div style={{ padding: '0 16px 8px' }}><Pagination label="Showing 1 to 6 of 28 projects" /></div>
+          <div style={{ padding: '0 16px 8px' }}><Pagination label={`Showing ${filtered.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, filtered.length)} of ${filtered.length} projects`} page={pg} pages={pages} onPage={setPage} /></div>
         </div>
 
         {/* Detail panel */}

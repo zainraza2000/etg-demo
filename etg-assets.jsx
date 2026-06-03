@@ -33,14 +33,40 @@ function AsKpiCard({ title, value, sub, icon, color, preview, upcoming }) {
 
 function AssetsScreen() {
   const [selected, setSelected] = useStateAs(ASSETS[0].tag);
-  const asset = ASSETS.find((a) => a.tag === selected);
+  const [search, setSearch] = useStateAs('');
+  const [fClient, setFClient] = useStateAs('All');
+  const [fSite, setFSite] = useStateAs('All');
+  const [fType, setFType] = useStateAs('All');
+  const [fCrit, setFCrit] = useStateAs('All');
+  const [view, setView] = useStateAs('list');
+  const [page, setPage] = useStateAs(1);
+  const [sel, setSel] = useStateAs({});
+  const PER = 8;
+  const clients = ['All', ...Array.from(new Set(ASSETS.map((a) => a.client)))];
+  const sites = ['All', ...Array.from(new Set(ASSETS.map((a) => a.site)))];
+  const types = ['All', ...Array.from(new Set(ASSETS.map((a) => a.type)))];
+  const filtered = ASSETS.filter((a) => {
+    if (fClient !== 'All' && a.client !== fClient) return false;
+    if (fSite !== 'All' && a.site !== fSite) return false;
+    if (fType !== 'All' && a.type !== fType) return false;
+    if (fCrit !== 'All' && a.criticality !== fCrit) return false;
+    if (search) { const q = search.toLowerCase(); const hay = `${a.name} ${a.eg} ${a.type} ${a.serial} ${a.ip} ${a.loc} ${a.client} ${a.site}`.toLowerCase(); if (!hay.includes(q)) return false; }
+    return true;
+  });
+  const asset = ASSETS.find((a) => a.tag === selected) || filtered[0] || ASSETS[0];
+  const pages = Math.max(1, Math.ceil(filtered.length / PER));
+  const pg = Math.min(page, pages);
+  const visible = filtered.slice((pg - 1) * PER, pg * PER);
+  const selCount = Object.values(sel).filter(Boolean).length;
+  const allOnPage = visible.length > 0 && visible.every((a) => sel[a.tag]);
+  const toggleAll = () => { const next = { ...sel }; if (allOnPage) visible.forEach((a) => delete next[a.tag]); else visible.forEach((a) => next[a.tag] = true); setSel(next); };
+  const toggleOne = (tag) => setSel((m) => ({ ...m, [tag]: !m[tag] }));
   return (
     <div>
       <PageHeader title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>Client Assets <PreviewPill /></span>} description="All client assets and equipment — asset monitoring & health is rolling out"
         actions={<>
-          <Button variant="outline" icon="download">Export</Button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="download">Export</Button><UpcomingPill /></span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="upload">Import Assets</Button><UpcomingPill /></span>
-          <Button variant="outline" icon="filter">Filters</Button>
           <Button variant="primary" icon="plus">Add Asset</Button>
         </>} />
       <div style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
@@ -50,30 +76,34 @@ function AssetsScreen() {
         {ASSET_KPIS2.map((k, i) => <AsKpiCard key={i} {...k} />)}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <SearchInput placeholder="Search assets by name, type, serial, IP, location..." />
-        <Select label="Client: All" /><Select label="Site: All" /><Select label="Asset Type: All" /><Select label="Status: All" />
+        <SearchInput placeholder="Search assets by name, type, serial, IP, location..." value={search} onChange={setSearch} />
+        <Select label="Client" value={fClient} options={clients} onChange={setFClient} />
+        <Select label="Site" value={fSite} options={sites} onChange={setFSite} />
+        <Select label="Type" value={fType} options={types} onChange={setFType} />
+        <Select label="Criticality" value={fCrit} options={['All', 'High', 'Medium', 'Low']} onChange={setFCrit} />
         <div style={{ marginLeft: 'auto', display: 'inline-flex', border: '1px solid hsl(var(--input))', borderRadius: 8, overflow: 'hidden' }}>
-          <button style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: 'hsl(var(--primary-subtle))', color: 'hsl(var(--primary))', fontWeight: 500, fontSize: 13, padding: '8px 13px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="list" size={15} />List View</button>
-          <button style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', borderLeft: '1px solid hsl(var(--input))', background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 11px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="map" size={15} />Map View<UpcomingPill compact /></button>
+          <button onClick={() => setView('list')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: view === 'list' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'list' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 13px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="list" size={15} />List View</button>
+          <button onClick={() => setView('map')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', borderLeft: '1px solid hsl(var(--input))', background: view === 'map' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'map' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 11px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="map" size={15} />Map View<UpcomingPill compact /></button>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 318px', gap: 16, alignItems: 'start' }}>
+      {view === 'map' ? <MapPlaceholder count={filtered.length} /> : <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 318px', gap: 16, alignItems: 'start' }}>
         <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-              <th style={{ padding: '11px 8px 11px 14px', width: 18 }}><input type="checkbox" /></th>
+              <th style={{ padding: '11px 8px 11px 14px', width: 18 }}><input type="checkbox" checked={allOnPage} onChange={toggleAll} style={{ cursor: 'pointer' }} /></th>
               {['Asset', 'Asset Type', 'Client / Site', 'Location', 'Criticality', 'Status', 'IP Address', 'Warranty', 'Health'].map((h, i) =>
                 <th key={i} style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '11px 12px' }}>
                   {h === 'Status' || h === 'Health' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>{h}<ReadOnlyTag /></span> : h}</th>)}
             </tr></thead>
             <tbody>
-              {ASSETS.map((a) => {
+              {visible.length === 0 && <tr><td colSpan={10} style={{ padding: '28px 14px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No assets match the current filters.</td></tr>}
+              {visible.map((a) => {
                 const isSel = selected === a.tag; const expired = a.warranty === 'Expired';
                 const critColor = { High: 'hsl(var(--destructive))', Medium: 'hsl(var(--warning))', Low: 'hsl(var(--success))' }[a.criticality];
                 return (
                   <tr key={a.tag} onClick={() => setSelected(a.tag)} style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent' }}>
-                    <td style={{ padding: '10px 8px 10px 14px' }}><input type="checkbox" /></td>
+                    <td style={{ padding: '10px 8px 10px 14px' }} onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={!!sel[a.tag]} onChange={() => toggleOne(a.tag)} style={{ cursor: 'pointer' }} /></td>
                     <td style={{ padding: '10px 12px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><DeviceTile type={a.type} />
                       <div><div style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}><IdChip id={a.eg} /><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{a.model}</span></div></div></div></td>
@@ -91,17 +121,27 @@ function AssetsScreen() {
               })}
             </tbody>
           </table>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 8px' }}><PreviewPill /><div style={{ flex: 1 }}><Pagination label="Showing 1 to 10 of 1,248 assets" /></div></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 8px' }}><PreviewPill />{selCount > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))' }}>{selCount} selected</span>}<div style={{ flex: 1 }}><Pagination label={`Showing ${filtered.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, filtered.length)} of ${filtered.length} assets`} page={pg} pages={pages} onPage={setPage} /></div></div>
         </div>
         <AssetDetail asset={asset} />
-      </div>
+      </div>}
     </div>
   );
+}
+
+function MapPlaceholder({ count }) {
+  return <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', padding: 40, minHeight: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 10 }}>
+    <div style={{ width: 64, height: 64, borderRadius: 16, background: 'hsl(var(--muted))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="map" size={30} color="hsl(var(--muted-foreground))" /></div>
+    <div style={{ fontSize: 16, fontWeight: 700 }}>Map View</div>
+    <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', maxWidth: 380 }}>Plotting {count} asset{count === 1 ? '' : 's'} by site location is on the roadmap — the geospatial layer ships with asset monitoring.</div>
+    <UpcomingPill />
+  </div>;
 }
 
 function AssetDetail({ asset: a }) {
   const expired = a.warranty === 'Expired';
   const critColor = { High: 'hsl(var(--destructive))', Medium: 'hsl(var(--warning))', Low: 'hsl(var(--success))' }[a.criticality];
+  const [tab, setTab] = useStateAs('Overview');
   return (
     <div style={{ position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Panel pad={15}>
@@ -144,18 +184,43 @@ function AssetDetail({ asset: a }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 14, borderTop: '1px solid hsl(var(--border))', borderBottom: '1px solid hsl(var(--border))', margin: '12px -15px 0', padding: '10px 15px', alignItems: 'center' }}>
-          {[['layout-grid', 'Overview', true], ['history', 'History'], ['file-text', 'Files'], ['bell', 'Alerts'], ['link', 'Linked']].map(([ic, l, on], i) =>
-            <span key={i} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 500, color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', cursor: 'pointer' }}>
+          {[['layout-grid', 'Overview'], ['history', 'History'], ['file-text', 'Files'], ['bell', 'Alerts'], ['link', 'Linked']].map(([ic, l], i) =>
+            <span key={i} onClick={() => setTab(l)} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 3, fontSize: 10.5, fontWeight: 500, color: tab === l ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', cursor: 'pointer' }}>
               <Icon name={ic} size={16} />{l}</span>)}
           <span style={{ marginLeft: 'auto' }}><PreviewPill /></span>
         </div>
-        <div style={{ paddingTop: 13 }}>
+        {tab === 'Overview' && <div style={{ paddingTop: 13 }}>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 9 }}>Quick Actions</div>
           {[['user', 'View Asset Profile', false], ['history', 'View Service History', false], ['file-text', 'View Linked Files', false], ['map-pin', 'View Asset Location (Map)', false], ['activity', 'Run Connectivity Test', true], ['ticket', 'Log Service Ticket', false]].map(([ic, l, up], i) =>
             <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '8px 11px', marginBottom: 7, fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: 'pointer' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--primary-subtle))'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name={ic} size={14} />{l}{up && <UpcomingPill compact />}</span><Icon name="arrow-right" size={14} /></div>)}
-        </div>
+        </div>}
+        {tab === 'History' && <div style={{ paddingTop: 13 }}>
+          {[['Installed', a.install || '—', 'Commissioned under ' + (a.fj || 'FJ-000291')], ['Firmware updated', '12 Mar 2026', a.firmware || 'V5.7.3'], ['Service visit', '04 Feb 2026', 'Preventative maintenance'], ['Alert raised', 'Recent', (a.alerts && a.alerts[0] ? a.alerts[0][1] : 'No alerts')]].map(([t, d, m], i, arr) =>
+            <div key={i} style={{ display: 'flex', gap: 10, paddingBottom: i < arr.length - 1 ? 12 : 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: 'hsl(var(--primary))', marginTop: 4 }} />{i < arr.length - 1 && <span style={{ flex: 1, width: 1.5, background: 'hsl(var(--border))', marginTop: 2 }} />}</div>
+              <div><div style={{ fontSize: 12.5, fontWeight: 600 }}>{t}</div><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{d} · {m}</div></div></div>)}
+        </div>}
+        {tab === 'Files' && <div style={{ paddingTop: 13, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[['Datasheet.pdf', '420 KB'], ['Install-cert.pdf', '180 KB'], ['Config-backup.cfg', '12 KB']].map(([f, s], i) =>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '8px 10px' }}><Icon name="file-text" size={15} color="hsl(var(--info))" /><span style={{ flex: 1, fontSize: 12.5 }}>{f}</span><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{s}</span></div>)}
+        </div>}
+        {tab === 'Alerts' && <div style={{ paddingTop: 13 }}>
+          {(a.alerts && a.alerts.length) ? a.alerts.map(([tier, title, when], i) => {
+            const c = tier === 'Critical' ? 'hsl(var(--destructive))' : tier === 'Warning' ? 'hsl(var(--warning))' : 'hsl(var(--info))';
+            return <div key={i} style={{ display: 'flex', gap: 9, padding: '7px 0', borderBottom: i < a.alerts.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, marginTop: 5, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontSize: 12.5, fontWeight: 500 }}>{title}</span><span style={{ fontSize: 9.5, fontWeight: 600, color: c, background: `${c.replace(')', ' / 0.12)')}`, padding: '0 6px', borderRadius: 999 }}>{tier}</span></div>
+              <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{when}</div></div></div>;
+          }) : <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>No active alerts for this asset.</div>}
+        </div>}
+        {tab === 'Linked' && <div style={{ paddingTop: 13 }}>
+          <KV k="Project"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{a.project || 'PRJ-000142'}</span></KV>
+          <KV k="Cost Centre"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{a.cc || a.costCentre || 'CC-000045'}</span></KV>
+          <KV k="Supplier"><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{a.supplier || 'SUP-000019'}</span></KV>
+          <KV k="Installed Under (Job)">{a.fj ? <IdChip id={a.fj} /> : <PendingDash />}</KV>
+        </div>}
       </Panel>
       <Panel title="Recent Alerts" action={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ReadOnlyTag /><UpcomingPill /></span>}>
         {(a.alerts && a.alerts.length) ? a.alerts.map(([tier, title, when], i) => {

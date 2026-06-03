@@ -38,14 +38,15 @@ function Gauge({ pct }) {
   );
 }
 
-function TkKpiCard({ title, value, sub, icon, color, upcoming }) {
+function TkKpiCard({ title, value, sub, icon, color, upcoming, onClick, active }) {
+  const clickable = !!onClick && !upcoming;
   return (
-    <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
+    <div onClick={clickable ? onClick : undefined} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
       <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: upcoming ? 0.55 : 1 }}><Icon name={icon} size={22} color="#fff" /></div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
         <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 6px', letterSpacing: '-0.02em', color: upcoming ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{upcoming ? '—' : value}</div>
-        {upcoming ? <UpcomingPill /> : <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: 'pointer' }}>{sub}</div>}
+        {upcoming ? <UpcomingPill /> : <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: clickable ? 'pointer' : 'default' }}>{sub}</div>}
       </div>
     </div>
   );
@@ -55,9 +56,45 @@ function ServiceTicketsScreen({ onNewTicket }) {
   const [previewId, setPreviewId] = useStateTk(null);
   const [previewRect, setPreviewRect] = useStateTk(null);
   const [drawerId, setDrawerId] = useStateTk(null);
-  const previewTk = TICKETS.find((t) => t.id === previewId);
-  const drawerTk = TICKETS.find((t) => t.id === drawerId);
+  const [savedView, setSavedView] = useStateTk('All');
+  const [search, setSearch] = useStateTk('');
+  const [fStatus, setFStatus] = useStateTk('All');
+  const [fPriority, setFPriority] = useStateTk('All');
+  const [fBU, setFBU] = useStateTk('All');
+  const [page, setPage] = useStateTk(1);
+  const [kpiFilter, setKpiFilter] = useStateTk(null);
+  const [statusOv, setStatusOv] = useStateTk({});
+  const [assignOv, setAssignOv] = useStateTk({});
+  const PER = 8;
+  const withOv = (t) => ({ ...t, status: statusOv[t.id] || t.status, assignee: assignOv[t.id] || t.assignee });
+  const previewTk = previewId && withOv(TICKETS.find((t) => t.id === previewId));
+  const drawerTk = drawerId && withOv(TICKETS.find((t) => t.id === drawerId));
   function openPreview(e, id) { setPreviewId(id); setPreviewRect(e.currentTarget.getBoundingClientRect()); }
+  const NEXT_STATUS = { 'Open': 'In Progress', 'In Progress': 'On Hold', 'On Hold': 'Resolved', 'Resolved': 'Open' };
+  const ASSIGNEES = ['Brendan Lee', 'Jake Murray', 'Liam Smith', 'Sarah Chen'];
+  function cycleStatus(id) { const cur = statusOv[id] || TICKETS.find((t) => t.id === id).status; setStatusOv((m) => ({ ...m, [id]: NEXT_STATUS[cur] || 'Open' })); }
+  function cycleAssign(id) { const cur = assignOv[id] || TICKETS.find((t) => t.id === id).assignee; const i = ASSIGNEES.indexOf(cur); setAssignOv((m) => ({ ...m, [id]: ASSIGNEES[(i + 1) % ASSIGNEES.length] })); }
+
+  // KPI → status filter (index-aligned to TICKET_KPIS)
+  const KPI_STATUS = ['Open', 'In Progress', 'On Hold', '__overdue', 'Resolved', null];
+  const kpiMatch = (t) => { if (!kpiFilter) return true; if (kpiFilter === '__overdue') return t.overdue; return (statusOv[t.id] || t.status) === kpiFilter; };
+
+  const savedMatch = { All: () => true, Overdue: (t) => t.overdue, Unassigned: (t) => (assignOv[t.id] || t.assignee) === 'Unassigned',
+    'Needs Review': (t) => t.ownership === 'Needs Review', Recurring: () => false };
+  const filtered = TICKETS.map(withOv).filter((t) => {
+    if (!(savedMatch[savedView] || (() => true))(t)) return false;
+    if (!kpiMatch(t)) return false;
+    if (fStatus !== 'All' && t.status !== fStatus) return false;
+    if (fPriority !== 'All' && t.priority !== fPriority) return false;
+    if (fBU !== 'All' && t.bu !== fBU) return false;
+    if (search) { const q = search.toLowerCase(); const hay = `${t.id} ${t.subject} ${t.client} ${t.site} ${t.issueType} ${t.assignee}`.toLowerCase(); if (!hay.includes(q)) return false; }
+    return true;
+  });
+  const pages = Math.max(1, Math.ceil(filtered.length / PER));
+  const pg = Math.min(page, pages);
+  const rows = filtered.slice((pg - 1) * PER, pg * PER);
+  const savedCounts = (key) => TICKETS.filter(savedMatch[key] || (() => true)).length;
+
   return (
     <div>
       <PageHeader title="Service Tickets" description="Track, manage and resolve customer service requests"
@@ -67,15 +104,23 @@ function ServiceTicketsScreen({ onNewTicket }) {
           <Button variant="primary" icon="plus" onClick={onNewTicket}>New Ticket</Button>
         </>} />
       <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
-        {TICKET_KPIS.map((k, i) => <TkKpiCard key={i} {...k} />)}
+        {TICKET_KPIS.map((k, i) => { const f = KPI_STATUS[i];
+          return <TkKpiCard key={i} {...k} onClick={f == null ? undefined : () => { setKpiFilter(kpiFilter === f ? null : f); setPage(1); }} active={kpiFilter === f && f != null} />; })}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        {[['All', false], [`Needs Review (${TICKETS_NEEDS_REVIEW})`, true], ['Overdue', false], ['Unassigned', false], ['Recurring', true]].map(([l, up], i) =>
-          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 500, padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
-            background: i === 0 ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: i === 0 ? 'hsl(var(--primary))' : 'hsl(var(--foreground))', border: `1px solid ${i === 0 ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--border))'}` }}>
-            {l}{up && <UpcomingPill compact />}</span>)}
+        {[['All', false], [`Needs Review`, true], ['Overdue', false], ['Unassigned', false], ['Recurring', true]].map(([l, up], i) => {
+          const on = savedView === l;
+          return <span key={i} onClick={() => { setSavedView(l); setPage(1); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 500, padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
+            background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: on ? 'hsl(var(--primary))' : 'hsl(var(--foreground))', border: `1px solid ${on ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--border))'}` }}>
+            {l}{l !== 'Recurring' && <span style={{ fontSize: 11, fontWeight: 700, color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}>({savedCounts(l)})</span>}{up && <UpcomingPill compact />}</span>;
+        })}
       </div>
-      <FilterBar search="Search tickets by ID, title, client, site, asset..." filters={['Status: Open, In Progress', 'Priority: All', 'Source: All', 'Issue Type: All', 'Business Unit: All', 'Ownership Status: All', 'Client: All', 'Assigned To: All', 'More Filters']} />
+      <FilterBar search="Search tickets by ID, title, client, site, asset..." searchValue={search} onSearch={(v) => { setSearch(v); setPage(1); }}
+        filters={[
+          { label: 'Status', value: fStatus, options: ['All', 'Open', 'In Progress', 'On Hold', 'Resolved'], onChange: (v) => { setFStatus(v); setPage(1); } },
+          { label: 'Priority', value: fPriority, options: ['All', 'High', 'Medium', 'Low'], onChange: (v) => { setFPriority(v); setPage(1); } },
+          { label: 'Business Unit', value: fBU, options: ['All', 'Evolution', 'Localcom', 'Shared'], onChange: (v) => { setFBU(v); setPage(1); } },
+        ]} />
 
       <div onMouseLeave={() => setPreviewId(null)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -85,7 +130,8 @@ function ServiceTicketsScreen({ onNewTicket }) {
                   {h === 'Asset' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>Asset<PreviewPill /></span> : h}</th>)}
             </tr></thead>
             <tbody>
-              {TICKETS.map((t) => {
+              {rows.length === 0 && <tr><td colSpan={8} style={{ padding: '28px 14px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No tickets match the current filters.</td></tr>}
+              {rows.map((t) => {
                 const isSel = previewId === t.id;
                 return (
                   <tr key={t.id} onMouseEnter={(e) => openPreview(e, t.id)} onClick={(e) => openPreview(e, t.id)} onDoubleClick={() => setDrawerId(t.id)}
@@ -103,9 +149,9 @@ function ServiceTicketsScreen({ onNewTicket }) {
               })}
             </tbody>
           </table>
-          <div style={{ padding: '0 14px 8px' }}><Pagination label="Showing 1 to 8 of 23 tickets" /></div>
+          <div style={{ padding: '0 14px 8px' }}><Pagination label={`Showing ${filtered.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, filtered.length)} of ${filtered.length} tickets`} page={pg} pages={pages} onPage={setPage} /></div>
       </div>
-      {previewTk && <TicketPreview t={previewTk} rect={previewRect} onOpen={() => { setDrawerId(previewTk.id); setPreviewId(null); }} onStay={() => {}} />}
+      {previewTk && <TicketPreview t={previewTk} rect={previewRect} onOpen={() => { setDrawerId(previewTk.id); setPreviewId(null); }} onAssign={() => cycleAssign(previewTk.id)} onStatus={() => cycleStatus(previewTk.id)} />}
       {drawerTk && <TicketDrawer t={drawerTk} onClose={() => setDrawerId(null)} />}
 
       {/* analytics footer */}
@@ -136,6 +182,9 @@ function TicketTab({ label, active, tag }) {
 }
 function TicketDetail({ ticket }) {
   const t = ticket;
+  const [tab, setTab] = useStateTk('Details');
+  const tabs = ['Details', `Assets (${t.assets})`, 'Timeline', 'Notes', 'Files', 'Customer Messages', 'Related Jobs'];
+  const tabTag = { [`Assets (${t.assets})`]: <PreviewPill />, 'Customer Messages': <UpcomingPill />, 'Related Jobs': <UpcomingPill /> };
   return (
     <div style={{ position: 'sticky', top: 0 }}>
       <Panel pad={15}>
@@ -184,9 +233,10 @@ function TicketDetail({ ticket }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid hsl(var(--border))', margin: '12px -15px 0', padding: '0 15px', flexWrap: 'wrap' }}>
-          <TicketTab label="Details" active /><TicketTab label={`Assets (${t.assets})`} tag={<PreviewPill />} /><TicketTab label="Timeline" /><TicketTab label="Notes" /><TicketTab label="Files" /><TicketTab label="Customer Messages" tag={<UpcomingPill />} /><TicketTab label="Related Jobs" tag={<UpcomingPill />} />
+          {tabs.map((l) => <span key={l} onClick={() => setTab(l)}><TicketTab label={l} active={tab === l} tag={tabTag[l]} /></span>)}
         </div>
         <div style={{ paddingTop: 13 }}>
+          {tab === 'Details' && <React.Fragment>
           <DetailBlock label="Description">{t.desc || 'No description provided.'}</DetailBlock>
           {t.impact && <div style={{ marginTop: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
@@ -203,6 +253,25 @@ function TicketDetail({ ticket }) {
           {t.job && <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Job Created</div>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id={t.job.split(' – ')[0]} /><span style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>{t.job.split(' – ')[1]}</span></span></div>}
+          </React.Fragment>}
+          {tab.startsWith('Assets') && <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Linked assets<PreviewPill /></div>
+            {Array.from({ length: Math.min(t.assets, 3) }).map((_, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '8px 10px' }}>
+              <Icon name="cctv" size={15} color="hsl(var(--muted-foreground))" /><div style={{ flex: 1 }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>{['Reception Dome Camera', 'Comms Switch', 'Door Reader'][i]}</div><IdChip id={`EG-00${42 + i}`} /></div></div>)}
+            {t.assets === 0 && <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>No assets linked to this ticket.</div>}</div>}
+          {tab === 'Timeline' && <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {[['Ticket created', t.created + ', ' + t.createdT, 'plus'], ['Auto-flagged ' + t.priority + ' priority', t.created, 'flag'], ['Assigned to ' + t.assignee, t.created, 'user'], ['Awaiting technician', '—', 'clock']].map(([a, m, ic], i, arr) =>
+              <div key={i} style={{ display: 'flex', gap: 10, paddingBottom: i < arr.length - 1 ? 14 : 0, position: 'relative' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}><span style={{ width: 24, height: 24, borderRadius: '50%', background: 'hsl(var(--primary-subtle))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon name={ic} size={12} color="hsl(var(--primary))" /></span>{i < arr.length - 1 && <span style={{ flex: 1, width: 1.5, background: 'hsl(var(--border))', marginTop: 2 }} />}</div>
+                <div><div style={{ fontSize: 12.5, fontWeight: 500 }}>{a}</div><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{m}</div></div></div>)}</div>}
+          {tab === 'Notes' && <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <div style={{ border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}><span style={{ fontSize: 11.5, fontWeight: 600 }}>{t.assignee}</span><span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.7)', border: '1px solid hsl(var(--border))', padding: '0 6px', borderRadius: 999 }}>Internal only</span></div><div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>{t.internal || 'Checked switch and PoE status — scheduling site visit.'}</div></div>
+            <textarea placeholder="Add a note…" style={{ width: '100%', height: 56, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: 9, fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'none' }} /></div>}
+          {tab === 'Files' && <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '8px 10px' }}><Icon name="file-text" size={15} color="hsl(var(--info))" /><span style={{ flex: 1, fontSize: 12.5 }}>site-photo-reception.jpg</span><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>1.8 MB</span></div>
+            <div style={{ border: '1.5px dashed hsl(var(--border))', borderRadius: 8, padding: '16px', textAlign: 'center', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Drop files here or click to upload</div></div>}
+          {tab === 'Customer Messages' && <div style={{ border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 9, padding: 20, textAlign: 'center' }}><Icon name="messages-square" size={22} color="hsl(var(--muted-foreground))" /><div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginTop: 8 }}>Customer messaging is on the roadmap.</div><div style={{ marginTop: 8 }}><UpcomingPill /></div></div>}
+          {tab === 'Related Jobs' && <div style={{ border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 9, padding: 20, textAlign: 'center' }}><Icon name="briefcase" size={22} color="hsl(var(--muted-foreground))" /><div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginTop: 8 }}>{t.fj ? <span>Linked field job <IdChip id={t.fj} /></span> : 'No related jobs yet.'}</div><div style={{ marginTop: 8 }}><UpcomingPill /></div></div>}
         </div>
       </Panel>
       <Panel title="Quick Actions" style={{ marginTop: 14 }}>
@@ -221,12 +290,12 @@ function DetailBlock({ label, children, style }) {
 }
 
 // ---- compact floating preview bubble (hover/click) ----
-function PvAction({ icon, label, primary, up }) {
-  return <button style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, minWidth: 0, height: 32, borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+function PvAction({ icon, label, primary, up, onClick }) {
+  return <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flex: 1, minWidth: 0, height: 32, borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
     border: primary ? 'none' : '1px solid hsl(var(--input))', background: primary ? 'hsl(var(--primary))' : 'hsl(var(--card))', color: primary ? '#fff' : 'hsl(var(--foreground))' }}>
     <Icon name={icon} size={13} />{label}{up && <Icon name="sparkles" size={10} color="hsl(258 70% 60%)" />}</button>;
 }
-function TicketPreview({ t, rect, onOpen }) {
+function TicketPreview({ t, rect, onOpen, onAssign, onStatus }) {
   const W = 350;
   const left = rect ? Math.min(rect.left + rect.width * 0.4, window.innerWidth - W - 16) : 200;
   const top = rect ? Math.min(Math.max(rect.top, 12), window.innerHeight - 380) : 80;
@@ -247,9 +316,9 @@ function TicketPreview({ t, rect, onOpen }) {
         <PvRow k="Job link">{t.fj ? <IdChip id={t.fj} /> : <PendingDash />}</PvRow>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-        <PvAction icon="external-link" label="Open Ticket" primary />
-        <PvAction icon="user-plus" label="Assign" />
-        <PvAction icon="refresh-cw" label="Status" />
+        <PvAction icon="external-link" label="Open Ticket" primary onClick={onOpen} />
+        <PvAction icon="user-plus" label="Assign" onClick={onAssign} />
+        <PvAction icon="refresh-cw" label="Status" onClick={onStatus} />
       </div>
       <div style={{ marginTop: 6 }}><button onClick={onOpen} style={{ width: '100%', height: 30, border: '1px solid hsl(var(--input))', background: 'hsl(var(--card))', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--foreground))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Icon name="package" size={13} />View Assets</button></div>
     </div>

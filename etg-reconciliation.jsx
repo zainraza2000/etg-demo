@@ -39,8 +39,18 @@ function RcKpiCard({ title, value, sub, icon, color }) {
 
 function ReconciliationScreen() {
   const [selected, setSelected] = useStateRc('r1');
-  const [tab, setTab] = useStateRc('Pending Verification');
-  const row = RECON_ROWS.find((r) => r.id === selected);
+  const [tab, setTab] = useStateRc('All Items');
+  const [statusOv, setStatusOv] = useStateRc({});
+  const rows0 = RECON_ROWS.map((r) => statusOv[r.id] ? { ...r, status: statusOv[r.id] } : r);
+  const tabMatch = { 'All Items': () => true, 'Potential Matches': (r) => r.status === 'Potential Match',
+    'Pending Verification': (r) => r.status === 'Pending Verification', 'Verified': (r) => r.status === 'Verified',
+    'Approved': (r) => r.status === 'Approved', 'Exceptions': (r) => r.status === 'Exception',
+    'Manager Review': (r) => r.status === 'Manager Review',
+    'Unallocated': (r) => r.cc === '—' };
+  const rows = rows0.filter(tabMatch[tab] || (() => true));
+  const row = rows0.find((r) => r.id === selected);
+  const setStatus = (id, s) => setStatusOv((m) => ({ ...m, [id]: s }));
+  const tabCount = (label) => RECON_ROWS.map((r) => statusOv[r.id] ? { ...r, status: statusOv[r.id] } : r).filter(tabMatch[label] || (() => true)).length;
   return (
     <div>
       <PageHeader title={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>Procurement &amp; Financial Reconciliation <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.7)', border: '1px solid hsl(var(--border))', padding: '2px 9px', borderRadius: 999 }}><Icon name="lock" size={11} />Internal · Finance only</span></span>} description="Both bank transaction AND supplier invoice must match and be manually verified before approval"
@@ -57,8 +67,8 @@ function ReconciliationScreen() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid hsl(var(--border))', marginBottom: 14, flexWrap: 'wrap' }}>
-        {RECON_TABS.map(([label, count]) => {
-          const on = label === tab;
+        {RECON_TABS.map(([label]) => {
+          const on = label === tab; const count = tabCount(label);
           return <button key={label} onClick={() => setTab(label)} style={{ border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 13, fontWeight: on ? 600 : 500,
             color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', borderBottom: on ? '2px solid hsl(var(--primary))' : '2px solid transparent', padding: '8px 11px', marginBottom: -1, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
             {label}<span style={{ background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--muted))', color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 700, padding: '0 6px', borderRadius: 999 }}>{count}</span></button>;
@@ -80,7 +90,8 @@ function ReconciliationScreen() {
               <th style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}>Actions</th>
             </tr></thead>
             <tbody>
-              {RECON_ROWS.map((r) => {
+              {rows.length === 0 && <tr><td colSpan={8} style={{ padding: '26px 12px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No items in this tab.</td></tr>}
+              {rows.map((r) => {
                 const isSel = selected === r.id;
                 return <tr key={r.id} onClick={() => setSelected(r.id)} style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent' }}>
                   <td style={{ padding: '11px 12px' }}><RcPill status={r.status} /></td>
@@ -96,10 +107,10 @@ function ReconciliationScreen() {
             </tbody>
           </table>
           </div>
-          <div style={{ padding: '0 14px 8px' }}><Pagination label="Showing 1 to 8 of 18 items" /></div>
+          <div style={{ padding: '0 14px 8px' }}><Pagination label={`Showing 1 to ${rows.length} of ${rows.length} items`} page={1} pages={1} onPage={() => {}} /></div>
         </div>
 
-        <ReconDetail row={row} />
+        <ReconDetail row={row} onStatus={setStatus} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr', gap: 16, marginTop: 16 }}>
@@ -165,7 +176,7 @@ function CheckItem({ label, state, upcoming }) {
 // the four real gates enforced today; everything else is roadmap
 const RECON_REAL_GATES = ['Bank transaction exists', 'Invoice exists', 'Amounts match', 'Manually verified'];
 
-function ReconDetail({ row: r }) {
+function ReconDetail({ row: r, onStatus }) {
   const matched = r.bankAmt === r.invAmt;
   const jobReady = !r.noPo && r.project !== '—';
   const doneCount = RECON_CHECKLIST.filter(([, s]) => s === 'done').length;
@@ -247,8 +258,8 @@ function ReconDetail({ row: r }) {
         </div>
 
         <div style={{ display: 'flex', gap: 9, marginTop: 13 }}>
-          <Button variant="primary" icon="check" style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(jobReady ? {} : { opacity: 0.5, pointerEvents: 'none' }) }}>Verify</Button>
-          <Button variant="outline" icon="flag" style={{ flex: 1, justifyContent: 'center' }}>Exception</Button>
+          <Button variant="primary" icon="check" onClick={() => jobReady && onStatus && onStatus(r.id, 'Verified')} style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(jobReady ? {} : { opacity: 0.5, pointerEvents: 'none' }) }}>Verify</Button>
+          <Button variant="outline" icon="flag" onClick={() => onStatus && onStatus(r.id, 'Exception')} style={{ flex: 1, justifyContent: 'center' }}>Exception</Button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 9, padding: '8px 10px', background: 'hsl(var(--muted) / 0.45)', borderRadius: 8 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}><Icon name="lock" size={13} />Lock into financials<UpcomingPill compact /></span>
@@ -260,9 +271,9 @@ function ReconDetail({ row: r }) {
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 9 }}>Allocation{r.status === 'Manager Review' && <span style={{ marginLeft: 7, ...statusStyle('medium'), padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 600 }}>Manager Review Required</span>}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           <div><div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>Project</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '8px 11px', fontSize: 13 }}><span style={{ color: 'hsl(var(--primary))', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{r.project}</span><Icon name="chevron-down" size={15} color="hsl(var(--muted-foreground))" /></div></div>
+            <Select label="" value={r.project} options={['PRJ-000142', 'PRJ-000144', 'PRJ-000146', 'PRJ-000148', 'Unallocated']} onChange={() => {}} /></div>
           <div><div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>Cost Centre</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '8px 11px', fontSize: 13 }}><span style={{ fontFamily: 'var(--font-mono)' }}>{r.cc !== '—' ? r.cc : 'Unallocated'}</span><Icon name="chevron-down" size={15} color="hsl(var(--muted-foreground))" /></div></div>
+            <Select label="" value={r.cc !== '—' ? r.cc : 'Unallocated'} options={['CC-000045', 'CC-000046', 'CC-000049', 'Unallocated']} onChange={() => {}} /></div>
           {/* N-way split allocation (roadmap) */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px dashed hsl(var(--border))', borderRadius: 8, padding: '8px 11px', fontSize: 12.5, background: 'hsl(var(--muted) / 0.35)', opacity: 0.7 }}><span style={{ fontFamily: 'var(--font-mono)', color: 'hsl(var(--muted-foreground))' }}>CC-000049 · 40%</span><span style={{ color: 'hsl(var(--muted-foreground))' }}>$232.32</span></div>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 500 }}><Icon name="plus" size={13} />Add split allocation<UpcomingPill compact /></div>

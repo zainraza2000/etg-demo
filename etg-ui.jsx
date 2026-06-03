@@ -123,16 +123,17 @@ function ProgressBar({ value, color = 'hsl(var(--primary))', width = 120 }) {
 }
 
 // ---- KPI card + strip ------------------------------------------------------
-function KpiCard({ title, value, sub, icon, color }) {
+function KpiCard({ title, value, sub, icon, color, onClick, active }) {
+  const clickable = !!onClick;
   return (
-    <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12,
-      padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
+    <div onClick={onClick} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12,
+      padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
       <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={22} color="#fff" /></div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
         <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 4px', letterSpacing: '-0.02em' }}>{value}</div>
-        <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: 'pointer' }}>{sub}</div>
+        <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: clickable ? 'pointer' : 'default' }}>{sub}</div>
       </div>
     </div>
   );
@@ -159,17 +160,50 @@ function PageHeader({ title, description, actions }) {
 }
 
 // ---- Filter bar ------------------------------------------------------------
-function Select({ label }) {
-  return <button style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 40, padding: '0 12px',
-    background: 'hsl(var(--card))', border: '1px solid hsl(var(--input))', borderRadius: 8, fontSize: 13.5,
-    fontFamily: 'inherit', fontWeight: 500, color: 'hsl(var(--foreground))', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-    {label}<Icon name="chevron-down" size={15} color="hsl(var(--muted-foreground))" /></button>;
+// Real dropdown. `label` is the trigger prefix (e.g. "Status"); `value` the
+// current selection; `options` an array of strings; `onChange(value)`.
+function Select({ label, value, options, onChange, leadDot }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const key = (e) => { if (e.key === 'Escape') setOpen(false);
+      else if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min((options || []).length - 1, h + 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); }
+      else if (e.key === 'Enter' && options) { onChange && onChange(options[hi]); setOpen(false); } };
+    document.addEventListener('mousedown', close); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', key); };
+  }, [open, hi, options, onChange]);
+  const display = value != null ? (label ? `${label}: ${value}` : value) : label;
+  const trigger = (e) => { if (e.type === 'keydown' && !(e.key === 'Enter' || e.key === ' ')) return; if (e.type === 'keydown') e.preventDefault(); setOpen((o) => !o); };
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={trigger} onKeyDown={trigger} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 40, padding: '0 12px',
+        background: open ? 'hsl(var(--accent-subtle))' : 'hsl(var(--card))', border: `1px solid ${open ? 'hsl(var(--ring))' : 'hsl(var(--input))'}`, borderRadius: 8, fontSize: 13.5,
+        fontFamily: 'inherit', fontWeight: 500, color: 'hsl(var(--foreground))', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        {leadDot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: leadDot }} />}
+        {display}<Icon name="chevron-down" size={15} color="hsl(var(--muted-foreground))" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .12s' }} /></button>
+      {open && options && <div style={{ position: 'absolute', top: 44, left: 0, zIndex: 50, minWidth: '100%', maxHeight: 280, overflowY: 'auto',
+        background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 9, boxShadow: 'var(--shadow-lg)', padding: 4 }}>
+        {options.map((o, i) => { const sel = o === value;
+          return <div key={o} onMouseEnter={() => setHi(i)} onClick={() => { onChange && onChange(o); setOpen(false); }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap',
+              background: i === hi ? 'hsl(var(--muted))' : 'transparent', color: 'hsl(var(--foreground))', fontWeight: sel ? 600 : 400 }}>
+            <span style={{ width: 14, flexShrink: 0 }}>{sel && <Icon name="check" size={14} color="hsl(var(--primary))" />}</span>{o}</div>; })}
+      </div>}
+    </div>
+  );
 }
-function SearchInput({ placeholder }) {
+function SearchInput({ placeholder, value, onChange }) {
   return <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
     <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--muted-foreground))' }}><Icon name="search" size={16} /></span>
-    <input placeholder={placeholder} style={{ width: '100%', height: 40, paddingLeft: 36, paddingRight: 12, boxSizing: 'border-box',
-      border: '1px solid hsl(var(--input))', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', background: 'hsl(var(--card))' }} /></div>;
+    <input value={value || ''} onChange={(e) => onChange && onChange(e.target.value)} placeholder={placeholder}
+      style={{ width: '100%', height: 40, paddingLeft: 36, paddingRight: value ? 34 : 12, boxSizing: 'border-box',
+      border: '1px solid hsl(var(--input))', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', background: 'hsl(var(--card))' }} />
+    {value && <span onClick={() => onChange && onChange('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', display: 'inline-flex' }}><Icon name="x" size={15} /></span>}
+  </div>;
 }
 function ViewToggle({ options, value, onChange }) {
   return <div style={{ display: 'inline-flex', border: '1px solid hsl(var(--input))', borderRadius: 8, overflow: 'hidden' }}>
@@ -181,33 +215,43 @@ function ViewToggle({ options, value, onChange }) {
         <Icon name={o.icon} size={15} />{o.label}</button>;
     })}</div>;
 }
-function FilterBar({ search, filters, children }) {
-  const [view, setView] = useState('list');
+// `filters` may be plain strings (static) or {label,value,options,onChange} objects.
+function FilterBar({ search, searchValue, onSearch, filters, children, view, onView, viewOptions }) {
+  const [v, setV] = useState('list');
+  const curView = view !== undefined ? view : v;
+  const setView = onView || setV;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-      <SearchInput placeholder={search} />
-      {filters.map((f, i) => <Select key={i} label={f} />)}
+      <SearchInput placeholder={search} value={searchValue} onChange={onSearch} />
+      {(filters || []).map((f, i) => typeof f === 'string'
+        ? <Select key={i} label={f} />
+        : <Select key={i} label={f.label} value={f.value} options={f.options} onChange={f.onChange} />)}
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 12 }}>
-        {children || <ViewToggle value={view} onChange={setView} options={[{ id: 'list', label: 'List View', icon: 'list' }, { id: 'board', label: 'Board View', icon: 'layout-grid' }]} />}
+        {children || <ViewToggle value={curView} onChange={setView} options={viewOptions || [{ id: 'list', label: 'List View', icon: 'list' }, { id: 'board', label: 'Board View', icon: 'layout-grid' }]} />}
       </div>
     </div>
   );
 }
 
 // ---- Pagination ------------------------------------------------------------
-function Pagination({ label }) {
+// Stateful: `page` (1-based), `pages` total, `onPage(n)`. Prev disabled on 1,
+// Next on last. Shows up to 5 numbered buttons windowed around the active page.
+function Pagination({ label, page = 1, pages = 1, onPage }) {
+  const set = (n) => { if (onPage && n >= 1 && n <= pages) onPage(n); };
+  let start = Math.max(1, Math.min(page - 2, pages - 4));
+  const nums = []; for (let i = start; i <= Math.min(pages, start + 4); i++) nums.push(i);
   return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 4px 2px' }}>
     <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{label}</span>
     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <PageBtn icon="chevron-left" />
-      {['1', '2', '3'].map((p, i) => <PageBtn key={p} label={p} active={i === 0} />)}
-      <PageBtn icon="chevron-right" />
+      <PageBtn icon="chevron-left" disabled={page <= 1} onClick={() => set(page - 1)} />
+      {nums.map((p) => <PageBtn key={p} label={String(p)} active={p === page} onClick={() => set(p)} />)}
+      <PageBtn icon="chevron-right" disabled={page >= pages} onClick={() => set(page + 1)} />
     </div></div>;
 }
-function PageBtn({ label, icon, active }) {
-  return <button style={{ minWidth: 34, height: 34, padding: '0 8px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+function PageBtn({ label, icon, active, disabled, onClick }) {
+  return <button onClick={disabled ? undefined : onClick} style={{ minWidth: 34, height: 34, padding: '0 8px', borderRadius: 8, cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
     border: active ? 'none' : '1px solid hsl(var(--input))', background: active ? 'hsl(var(--primary))' : 'hsl(var(--card))',
-    color: active ? '#fff' : 'hsl(var(--foreground))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+    color: active ? '#fff' : 'hsl(var(--foreground))', opacity: disabled ? 0.4 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
     {icon ? <Icon name={icon} size={15} /> : label}</button>;
 }
 

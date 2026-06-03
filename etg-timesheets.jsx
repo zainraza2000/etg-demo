@@ -113,7 +113,7 @@ function sumHrs(entries) { return entries.reduce((a, e) => a + (parseFloat(e.hrs
 const TS_FILTERS = [
   { key: 'pending', title: 'Pending Approval', value: '18.25 hrs', icon: 'user-check', color: 'violet', match: (t) => t.status === 'Pending Approval' },
   { key: 'rejected', title: 'Rejected Hours', value: '6.50 hrs', icon: 'x-circle', color: 'red', match: (t) => t.status === 'Rejected' },
-  { key: 'nonbillable', title: 'Non-Billable Hours', value: '44.75 hrs', icon: 'clock', color: 'orange', match: () => true },
+  { key: 'nonbillable', title: 'Non-Billable Hours', value: '44.75 hrs', icon: 'clock', color: 'orange', match: (t) => parseFloat(t.nonBillable) > 0 },
   { key: 'approved', title: 'Approved Hours', value: '219.00 hrs', icon: 'check-circle-2', color: 'slate', match: (t) => t.status === 'Approved' },
 ];
 
@@ -124,10 +124,23 @@ function TimesheetsScreen() {
   const [filter, setFilter] = useStateTs(null);
   const [preview, setPreview] = useStateTs(null);     // { id, rect }
   const [approve, setApprove] = useStateTs(null);     // tech id for full approval
+  const [statusOv, setStatusOv] = useStateTs({});     // { usrId: 'Approved' | ... }
+  const [view, setView] = useStateTs('list');
+  const [scope, setScope] = useStateTs({ tech: 'All Technicians', job: 'All Jobs', status: 'All Statuses' });
+  const [page, setPage] = useStateTs(1);
+  const PER = 8;
+  const withStatus = (t) => statusOv[t.id] ? { ...t, status: statusOv[t.id] } : t;
   const filterDef = TS_FILTERS.find((f) => f.key === filter);
-  const rows = filterDef ? TIMESHEETS.filter(filterDef.match) : TIMESHEETS;
-  const previewTk = preview && TIMESHEETS.find((t) => t.id === preview.id);
-  const approveTk = approve && TIMESHEETS.find((t) => t.id === approve);
+  const baseRows0 = TIMESHEETS.map(withStatus);
+  const baseRows = baseRows0.filter((t) =>
+    (scope.tech === 'All Technicians' || t.tech === scope.tech) &&
+    (scope.status === 'All Statuses' || t.status === scope.status));
+  const rows = filterDef ? baseRows.filter(filterDef.match) : baseRows;
+  const pages = Math.max(1, Math.ceil(rows.length / PER));
+  const pg = Math.min(page, pages);
+  const previewTk = preview && baseRows.find((t) => t.id === preview.id);
+  const approveTk = approve && baseRows.find((t) => t.id === approve);
+  const setStatus = (id, s) => { setStatusOv((m) => ({ ...m, [id]: s })); setApprove(null); };
   __gi = 0;
 
   return (
@@ -135,7 +148,7 @@ function TimesheetsScreen() {
       <PageHeader title="Timesheets" description="Track, review and approve labour hours"
         actions={<>
           <Button variant="outline" icon="download">Export</Button>
-          <Button variant="outline" icon="check-square">Approvals</Button>
+          <Button variant="outline" icon="check-square" onClick={() => { setFilter('pending'); setPage(1); }}>Approvals</Button>
           <Button variant="primary" icon="plus">Add Time</Button>
         </>} />
 
@@ -147,19 +160,31 @@ function TimesheetsScreen() {
       {/* filter bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         {filterDef && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--primary))', background: 'hsl(var(--primary-subtle))', border: '1px solid hsl(var(--primary) / 0.3)', borderRadius: 999, padding: '5px 11px' }}>Filtered: {filterDef.title}<Icon name="x" size={13} style={{ cursor: 'pointer' }} onClick={() => setFilter(null)} /></span>}
-        <Select label="12 – 18 May 2026" /><Select label="This Week" /><Select label="All Technicians" /><Select label="All Jobs" /><Select label="All Statuses" /><Select label="More Filters" />
+        <Select label="Date Range" value="12 – 18 May 2026" options={['12 – 18 May 2026', '05 – 11 May 2026', '19 – 25 May 2026']} onChange={() => {}} />
+        <Select label="Period" value="This Week" options={['This Week', 'Last Week', 'This Month', 'Custom']} onChange={() => {}} />
+        <Select label="Technician" value={scope.tech} options={['All Technicians', ...TIMESHEETS.map((t) => t.tech)]} onChange={(v) => { setScope((s) => ({ ...s, tech: v })); setPage(1); }} />
+        <Select label="Job" value={scope.job} options={['All Jobs', 'FJ-001052', 'FJ-001055', 'FJ-001064', 'FJ-001067']} onChange={(v) => setScope((s) => ({ ...s, job: v }))} />
+        <Select label="Status" value={scope.status} options={['All Statuses', 'Approved', 'Pending Approval', 'Rejected', 'No Timesheet']} onChange={(v) => { setScope((s) => ({ ...s, status: v })); setPage(1); }} />
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Select label="More Filters" /><UpcomingPill /></span>
         <div style={{ marginLeft: 'auto', display: 'inline-flex', border: '1px solid hsl(var(--input))', borderRadius: 8, overflow: 'hidden' }}>
-          <button style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: 'hsl(var(--primary-subtle))', color: 'hsl(var(--primary))', fontWeight: 500, fontSize: 13, padding: '8px 13px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="list" size={15} />List View</button>
-          <button style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', borderLeft: '1px solid hsl(var(--input))', background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 11px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="calendar" size={15} />Calendar View<UpcomingPill compact /></button>
+          <button onClick={() => setView('list')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: view === 'list' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'list' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 13px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="list" size={15} />List View</button>
+          <button onClick={() => setView('calendar')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', borderLeft: '1px solid hsl(var(--input))', background: view === 'calendar' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'calendar' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 11px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="calendar" size={15} />Calendar View<UpcomingPill compact /></button>
         </div>
       </div>
 
-      {/* full-width grouped scan table */}
+      {view === 'calendar' ? <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', padding: 40, minHeight: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 10 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: 'hsl(var(--muted))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="calendar" size={30} color="hsl(var(--muted-foreground))" /></div>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>Calendar View</div>
+        <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', maxWidth: 400 }}>A week-grid view of labour by technician and day is on the roadmap — clock events will plot here once the mobile capture feed is live.</div>
+        <UpcomingPill />
+      </div> :
+
+      /* full-width grouped scan table */
       <div onMouseLeave={() => setPreview(null)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
         <div style={{ padding: '11px 16px', borderBottom: '1px solid hsl(var(--border))', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>Timesheets<PreviewPill /><span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: 'hsl(var(--muted-foreground))' }}>Hover a technician for a quick preview · open to approve</span></div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <tbody>
-            {rows.map((t) => {
+            {rows.slice((pg - 1) * PER, pg * PER).map((t) => {
               const isExp = expanded[t.id] && t.entries.length > 0;
               const st = techState(t);
               const block = st.exceptions.some(([, sev]) => sev === 'block');
@@ -215,11 +240,11 @@ function TimesheetsScreen() {
             <SubcontractorRow />
           </tbody>
         </table>
-        <div style={{ padding: '0 16px 8px' }}><Pagination label="Showing 1 to 4 of 16 technicians" /></div>
-      </div>
+        <div style={{ padding: '0 16px 8px' }}><Pagination label={`Showing ${rows.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, rows.length)} of ${rows.length} technicians`} page={pg} pages={pages} onPage={setPage} /></div>
+      </div>}
 
       {previewTk && <TsPreview t={previewTk} rect={preview.rect} onOpen={() => { setApprove(previewTk.id); setPreview(null); }} />}
-      {approveTk && <ApprovalDrawer t={approveTk} onClose={() => setApprove(null)} />}
+      {approveTk && <ApprovalDrawer t={approveTk} onClose={() => setApprove(null)} onStatus={setStatus} />}
     </div>
   );
 }
@@ -266,7 +291,7 @@ function DrawerSection({ title, tag, children }) {
   return <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 13, marginTop: 13 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}><span style={{ fontSize: 13, fontWeight: 600 }}>{title}</span>{tag}</div>{children}</div>;
 }
-function ApprovalDrawer({ t, onClose }) {
+function ApprovalDrawer({ t, onClose, onStatus }) {
   const st = techState(t); const block = st.exceptions.some(([, s]) => s === 'block');
   const entries = t.entries.filter((e) => e.type);
   let gi = 0;
@@ -282,9 +307,9 @@ function ApprovalDrawer({ t, onClose }) {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, margin: '10px 0' }}><ReadinessBadge state={st.readiness} compact /><DualReady payroll={st.payroll} invoice={st.invoice} /></div>
           <div style={{ display: 'flex', gap: 9 }}>
-            <Button variant="primary" icon="check" style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(block ? { opacity: 0.5, pointerEvents: 'none' } : {}) }}>Approve</Button>
-            <Button variant="destructive" icon="x" style={{ flex: 1, justifyContent: 'center' }}>Reject</Button>
-            <Button variant="outline" icon="rotate-ccw" style={{ flex: 1, justifyContent: 'center' }}>Request changes</Button>
+            <Button variant="primary" icon="check" onClick={() => !block && onStatus && onStatus(t.id, 'Approved')} style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(block ? { opacity: 0.5, pointerEvents: 'none' } : {}) }}>Approve</Button>
+            <Button variant="destructive" icon="x" onClick={() => onStatus && onStatus(t.id, 'Rejected')} style={{ flex: 1, justifyContent: 'center' }}>Reject</Button>
+            <Button variant="outline" icon="rotate-ccw" onClick={() => onStatus && onStatus(t.id, 'Pending Approval')} style={{ flex: 1, justifyContent: 'center' }}>Request changes</Button>
           </div>
           {block && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11.5, color: 'hsl(var(--destructive))' }}><Icon name="ban" size={13} />Approve disabled — resolve block-class exceptions first.</div>}
         </div>

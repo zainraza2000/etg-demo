@@ -74,7 +74,26 @@ function CalendarScreen() {
   const [sel, setSel] = useStateCal('0-0');
   const [worker, setWorker] = useStateCal(null); // technician index for drill-down
   const [kpiFilter, setKpiFilter] = useStateCal(null);
+  const [calView, setCalView] = useStateCal('Week');
+  const [gateJob, setGateJob] = useStateCal(null); // {title, gate} for queue scheduling
+  const [calSearch, setCalSearch] = useStateCal('');
+  const [moreFilter, setMoreFilter] = useStateCal('All');
+  const [newVisitTech, setNewVisitTech] = useStateCal(null);
   const CELL = 168;
+  if (newVisitTech !== null) return <NewVisitForm prefill={{ techIndex: newVisitTech }} techIndex={newVisitTech} onCancel={() => setNewVisitTech(null)} onCreate={() => setNewVisitTech(null)} />;
+  // view + filter helpers (Day narrows to today's column; search/KPI/More narrow visible jobs)
+  const GD = calView === 'Day' ? [2] : [0, 1, 2, 3, 4, 5, 6];
+  const KMATCH = { blocked: 'Blocked', inprog: 'In Progress', unassigned: 'Unassigned', ot: 'Overdue' };
+  const jobVisible = (job, tech) => {
+    if (!job) return false;
+    if (calSearch) { const q = calSearch.toLowerCase(); if (!(`${job.title} ${job.client} ${job.loc || ''} ${tech || ''}`.toLowerCase().includes(q))) return false; }
+    if (kpiFilter && KMATCH[kpiFilter] && job.state !== KMATCH[kpiFilter]) return false;
+    if (moreFilter === 'Blocked' && job.state !== 'Blocked') return false;
+    if (moreFilter === 'In Progress' && job.state !== 'In Progress') return false;
+    if (moreFilter === 'Unassigned' && job.state !== 'Unassigned') return false;
+    if (moreFilter === 'High priority' && job.prio !== 'High') return false;
+    return true;
+  };
   if (worker !== null) return <WorkerCalendar techIndex={worker} onBack={() => setWorker(null)} onOpenVisit={() => {}} />;
   // resolve selected job from the "ti-di" / "u-di" key
   let selJob = null;
@@ -110,7 +129,7 @@ function CalendarScreen() {
           <Button variant="outline">Today</Button>
           <Button variant="outline" icon="calendar">12 – 18 May 2026</Button>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="sparkles">Auto-Schedule</Button><UpcomingPill /></span>
-          <Button variant="primary" icon="plus">New Visit</Button>
+          <Button variant="primary" icon="plus" onClick={() => setNewVisitTech(0)}>New Visit</Button>
         </div>
       </div>
       {/* 8 clickable KPI filters */}
@@ -130,13 +149,15 @@ function CalendarScreen() {
       {/* view tabs + search */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <div style={{ display: 'inline-flex', background: 'hsl(var(--muted))', borderRadius: 8, padding: 3, gap: 2 }}>
-          {[['Week', false], ['Day', false], ['Technicians', true], ['Jobs List', true], ['Map View', true]].map(([t, up], i) =>
-            <button key={t} style={{ border: 'none', fontFamily: 'inherit', fontSize: 13, fontWeight: 500, padding: '6px 11px', borderRadius: 6, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: i === 0 ? 'hsl(var(--card))' : 'transparent', color: i === 0 ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', boxShadow: i === 0 ? 'var(--shadow-sm)' : 'none' }}>{t}{up && <UpcomingPill compact />}</button>)}
+          {[['Week', false], ['Day', false], ['Technicians', false], ['Jobs List', false], ['Map View', true]].map(([t, up], i) => {
+            const on = calView === t;
+            return <button key={t} onClick={() => setCalView(t)} style={{ border: 'none', fontFamily: 'inherit', fontSize: 13, fontWeight: 500, padding: '6px 11px', borderRadius: 6, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: on ? 'hsl(var(--card))' : 'transparent', color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', boxShadow: on ? 'var(--shadow-sm)' : 'none' }}>{t}{up && <UpcomingPill compact />}</button>;
+          })}
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12 }}>
-          <SearchInput placeholder="Search jobs, clients, sites..." />
-          <Select label="More Filters" />
+          <SearchInput placeholder="Search jobs, clients, sites..." value={calSearch} onChange={setCalSearch} />
+          <Select label="More Filters" value={moreFilter} options={['All', 'High priority', 'Blocked', 'In Progress', 'Unassigned']} onChange={setMoreFilter} />
         </div>
       </div>
 
@@ -160,7 +181,7 @@ function CalendarScreen() {
           {[['High', 'CCTV Upgrade', 'ABC Corporate', 'Blocked: Parts missing', 'block'], ['High', 'Network Upgrade', 'XYZ Building', 'Blocked: Access issue', 'block'], ['Medium', 'Switchboard Install', 'BuildCo Group', 'Warn: Skills gap', 'warn'], ['Medium', 'Lighting Audit', 'Retail Group', 'Warn: Overtime risk', 'warn'], ['Low', 'Site Inspection', "St Mary's College", 'Needs review', 'review'], ['Low', 'Quote Follow Up', 'Fusion Manufacturing', 'Unassigned', 'review']].map(([prio, title, client, why, sev], i) => {
             const pc = prio === 'High' ? 'hsl(var(--destructive))' : prio === 'Medium' ? 'hsl(var(--warning))' : 'hsl(var(--success))';
             const wc = sev === 'block' ? 'hsl(var(--destructive))' : sev === 'warn' ? 'hsl(var(--warning))' : 'hsl(var(--muted-foreground))';
-            return <div key={i} style={{ minWidth: 188, flexShrink: 0, border: '1px solid hsl(var(--border))', borderLeft: `3px solid ${pc}`, borderRadius: 8, padding: '8px 10px', cursor: 'grab', background: 'hsl(var(--card))' }}>
+            return <div key={i} onClick={() => setGateJob({ title, client, why, sev })} style={{ minWidth: 188, flexShrink: 0, border: '1px solid hsl(var(--border))', borderLeft: `3px solid ${pc}`, borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: 'hsl(var(--card))' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: pc }} /><span style={{ fontSize: 10, fontWeight: 700, color: pc }}>{prio}</span></div>
               <div style={{ fontSize: 12.5, fontWeight: 600 }}>{title}</div>
               <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{client}</div>
@@ -171,13 +192,18 @@ function CalendarScreen() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 300px', gap: 16, alignItems: 'start' }}>
+        {calView === 'Map View' ? <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', padding: 40, minHeight: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 10 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 16, background: 'hsl(var(--muted))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="map" size={30} color="hsl(var(--muted-foreground))" /></div>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>Map View</div>
+          <div style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', maxWidth: 380 }}>Live technician routing & job locations plot here once the dispatch map ships.</div><UpcomingPill />
+        </div> : calView === 'Jobs List' ? <CalJobsList kpiFilter={kpiFilter} /> : calView === 'Technicians' ? <CalTechSummary kpiFilter={kpiFilter} search={calSearch} onOpen={setWorker} /> :
         <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
             <div style={{ minWidth: 184 + CELL * 7 }}>
               {/* header */}
-              <div style={{ display: 'grid', gridTemplateColumns: `184px repeat(7, ${CELL}px)`, borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `184px repeat(${GD.length}, ${CELL}px)`, borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)' }}>
                 <div style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>Technicians</div>
-                {CAL_DAYS.map((d, i) => { const [dow, ...rest] = d.split(' '); const isToday = i === 2;
+                {GD.map((i) => { const [dow, ...rest] = CAL_DAYS[i].split(' '); const isToday = i === 2;
                   return <div key={i} style={{ padding: '9px 12px', borderLeft: '1px solid hsl(var(--border))', fontSize: 12.5 }}>
                     <span style={{ color: 'hsl(var(--muted-foreground))' }}>{dow} </span>
                     <span style={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...(isToday ? { background: 'hsl(var(--primary))', color: '#fff', borderRadius: '50%', width: 22, height: 22 } : {}) }}>{rest[0]}</span>
@@ -185,7 +211,7 @@ function CalendarScreen() {
               </div>
               {/* tech rows */}
               {TECHS.map((tech, ti) => (
-                <div key={ti} style={{ display: 'grid', gridTemplateColumns: `184px repeat(7, ${CELL}px)`, borderBottom: '1px solid hsl(var(--border))', minHeight: 96 }}>
+                <div key={ti} style={{ display: 'grid', gridTemplateColumns: `184px repeat(${GD.length}, ${CELL}px)`, borderBottom: '1px solid hsl(var(--border))', minHeight: 96 }}>
                   <div onClick={() => setWorker(ti)} title={`Open ${tech.name}'s calendar`} style={{ padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', borderRadius: 8 }}
                     onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted) / 0.5)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                     <Avatar name={tech.name} size={30} />
@@ -203,22 +229,23 @@ function CalendarScreen() {
                       </div>
                     </div>
                   </div>
-                  {CAL_DAYS.map((_, di) => {
+                  {GD.map((di) => {
                     const job = (CAL_JOBS[ti] || []).find((j) => j.day === di);
+                    const vis = jobVisible(job, tech.name);
                     return <div key={di} style={{ borderLeft: '1px solid hsl(var(--border))', padding: 5 }}>
-                      {job && <JobBlock job={job} selected={sel === `${ti}-${di}`} onClick={() => setSel(`${ti}-${di}`)} />}</div>;
+                      {job && vis && <JobBlock job={job} selected={sel === `${ti}-${di}`} onClick={() => setSel(`${ti}-${di}`)} />}</div>;
                   })}
                 </div>
               ))}
               {/* unassigned lane */}
-              <div style={{ display: 'grid', gridTemplateColumns: `184px repeat(7, ${CELL}px)`, minHeight: 96, background: 'hsl(var(--destructive-subtle) / 0.3)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `184px repeat(${GD.length}, ${CELL}px)`, minHeight: 96, background: 'hsl(var(--destructive-subtle) / 0.3)' }}>
                 <div style={{ padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'hsl(var(--muted))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="user-x" size={15} color="hsl(var(--muted-foreground))" /></span>
                   <div><div style={{ fontSize: 12.5, fontWeight: 600 }}>Unassigned Jobs</div><div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>3 jobs</div></div>
                 </div>
-                {CAL_DAYS.map((_, di) => { const job = CAL_UNASSIGNED.find((j) => j.day === di);
+                {GD.map((di) => { const job = CAL_UNASSIGNED.find((j) => j.day === di); const vis = jobVisible(job, 'Unassigned');
                   return <div key={di} style={{ borderLeft: '1px solid hsl(var(--border))', padding: 5 }}>
-                    {job && <JobBlock job={job} selected={sel === `u-${di}`} onClick={() => setSel(`u-${di}`)} />}</div>; })}
+                    {job && vis && <JobBlock job={job} selected={sel === `u-${di}`} onClick={() => setSel(`u-${di}`)} />}</div>; })}
               </div>
             </div>
           </div>
@@ -245,11 +272,13 @@ function CalendarScreen() {
             <span>Total Available <b style={{ color: 'hsl(var(--foreground))' }}>156.0 hrs</b></span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>Utilisation <b style={{ color: 'hsl(var(--foreground))' }}>82%</b><Icon name="lock" size={11} /></span>
           </div>
-        </div>
+        </div>}
 
         {/* job detail */}
         <JobDetail job={selJob} />
       </div>
+
+      {gateJob && <CalGateModal job={gateJob} onClose={() => setGateJob(null)} />}
     </div>
   );
 }
@@ -355,6 +384,85 @@ function DRow({ label, tag, children }) {
   return <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, fontSize: 12.5 }}>
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}>{label}{tag}</span>
     <span style={{ textAlign: 'right' }}>{children}</span></div>;
+}
+
+// ---- Jobs List view + queue gate modal ----
+function CalTechSummary({ kpiFilter, search, onOpen }) {
+  const KMATCH = { blocked: 'Blocked', inprog: 'In Progress', unassigned: 'Unassigned', ot: 'Overdue' };
+  return <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+    <div style={{ padding: '11px 16px', borderBottom: '1px solid hsl(var(--border))', fontSize: 13, fontWeight: 600 }}>Technicians — workload summary</div>
+    {TECHS.map((tech, ti) => {
+      let jobs = (CAL_JOBS[ti] || []);
+      if (kpiFilter && KMATCH[kpiFilter]) jobs = jobs.filter((j) => j.state === KMATCH[kpiFilter]);
+      if (search) { const q = search.toLowerCase(); jobs = jobs.filter((j) => `${j.title} ${j.client}`.toLowerCase().includes(q)); }
+      return <div key={ti} onClick={() => onOpen(ti)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer' }}
+        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted) / 0.4)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+        <Avatar name={tech.name} size={34} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'hsl(var(--primary))' }}>{tech.name}</div>
+          <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>{jobs.length} visit{jobs.length === 1 ? '' : 's'} · {tech.capacity.sched.toFixed(1)} / {tech.capacity.avail.toFixed(0)} hrs · Gap {tech.capacity.gap}</div>
+        </div>
+        <span style={{ fontSize: 11, color: TECH_STATE_COLOR[tech.state], display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: TECH_STATE_COLOR[tech.state] }} />{tech.state}</span>
+        <Icon name="chevron-right" size={16} color="hsl(var(--muted-foreground))" />
+      </div>;
+    })}
+  </div>;
+}
+function CalJobsList({ kpiFilter }) {
+  const all = []; Object.keys(CAL_JOBS).forEach((ti) => (CAL_JOBS[ti] || []).forEach((j) => all.push({ ...j, tech: TECHS[ti] && TECHS[ti].name })));
+  CAL_UNASSIGNED.forEach((j) => all.push({ ...j, tech: 'Unassigned' }));
+  const KMAP = { blocked: 'Blocked', inprog: 'In Progress', unassigned: 'Unassigned' };
+  const want = KMAP[kpiFilter];
+  const rows = want ? all.filter((j) => j.state === want || (want === 'Unassigned' && j.tech === 'Unassigned')) : all;
+  return <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+      <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+        {['Visit', 'Title', 'Client', 'Technician', 'Time', 'State'].map((h, i) => <th key={i} style={{ textAlign: 'left', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}>{h}</th>)}
+      </tr></thead>
+      <tbody>
+        {rows.map((j, i) => <tr key={i} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
+          <td style={{ padding: '9px 12px' }}><IdChip id={j.sd} /></td>
+          <td style={{ padding: '9px 12px', fontWeight: 600 }}>{j.title}</td>
+          <td style={{ padding: '9px 12px', color: 'hsl(var(--muted-foreground))' }}>{j.client}</td>
+          <td style={{ padding: '9px 12px' }}>{j.tech === 'Unassigned' ? <span style={{ color: 'hsl(var(--destructive))' }}>Unassigned</span> : j.tech}</td>
+          <td style={{ padding: '9px 12px' }}><SiteTime time={j.time} zone={siteZoneFor(j.client)} small /></td>
+          <td style={{ padding: '9px 12px' }}><StatusBadge status={j.state} /></td>
+        </tr>)}
+        {rows.length === 0 && <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: 'hsl(var(--muted-foreground))' }}>No visits match this filter.</td></tr>}
+      </tbody>
+    </table>
+  </div>;
+}
+function CalGateModal({ job, onClose }) {
+  const map = { block: ['ban', 'hsl(var(--destructive))', 'Blocked — cannot schedule', 'Resolve the blocker before this visit can be placed on the board.', false],
+    warn: ['alert-triangle', 'hsl(var(--warning))', 'Warning — proceed with override', 'You can schedule this visit, but the scheduling engine flagged a risk.', true],
+    review: ['help-circle', 'hsl(var(--muted-foreground))', 'Needs review', 'Assign a technician and confirm readiness to schedule.', true] };
+  const [ic, c, title, body, canProceed] = map[job.sev] || map.review;
+  return <React.Fragment>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'hsl(222 47% 11% / 0.4)', zIndex: 950 }} />
+    <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 420, maxWidth: '92vw', background: 'hsl(var(--card))', borderRadius: 14, boxShadow: 'var(--shadow-xl)', zIndex: 951, overflow: 'hidden' }}>
+      <div style={{ padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'hsl(var(--success))' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'hsl(var(--success))' }} />Scheduling Gate · Live</span>
+          <button onClick={onClose} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', display: 'inline-flex' }}><Icon name="x" size={17} /></button>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>{job.title}</div>
+        <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginBottom: 13 }}>{job.client} · scheduling onto the board</div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: `${c.replace(')', ' / 0.1)')}`, border: `1px solid ${c.replace(')', ' / 0.3)')}`, borderRadius: 10, padding: '12px 14px' }}>
+          <Icon name={ic} size={18} color={c} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div><div style={{ fontSize: 13.5, fontWeight: 600, color: c }}>{title}</div><div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>{job.why} — {body}</div></div>
+        </div>
+        {canProceed && <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 5 }}>Override reason</div>
+          <textarea placeholder="Why are you overriding the gate?" style={{ width: '100%', height: 48, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: 9, boxSizing: 'border-box', fontSize: 12.5, fontFamily: 'inherit', resize: 'none' }} />
+        </div>}
+        <div style={{ display: 'flex', gap: 9, marginTop: 14 }}>
+          <Button variant="outline" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>Cancel</Button>
+          <Button variant="primary" icon={canProceed ? 'check' : 'ban'} onClick={onClose} style={{ flex: 1, justifyContent: 'center', ...(canProceed ? {} : { opacity: 0.5, pointerEvents: 'none' }) }}>{canProceed ? 'Override & Schedule' : 'Blocked'}</Button>
+        </div>
+      </div>
+    </div>
+  </React.Fragment>;
 }
 
 Object.assign(window, { CalendarScreen });

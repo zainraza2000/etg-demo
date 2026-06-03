@@ -18,9 +18,10 @@ function MtConf({ conf }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ width: 54, height: 6, background: 'hsl(var(--muted))', borderRadius: 999 }}><span style={{ display: 'block', height: '100%', width: `${conf}%`, background: c, borderRadius: 999 }} /></span><span style={{ fontSize: 12, fontWeight: 600 }}>{conf}%</span></span>;
 }
 // KPI card — engine roll-ups (Read-only); bank-feed-dependent tiles are Preview (muted).
-function MtKpiCard({ title, value, sub, icon, color, readOnly, preview }) {
+function MtKpiCard({ title, value, sub, icon, color, readOnly, preview, onClick, active }) {
+  const clickable = !!onClick;
   return (
-    <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
+    <div onClick={onClick} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
       <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: preview ? 0.6 : 1 }}><Icon name={icon} size={22} color="#fff" /></div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
@@ -35,7 +36,23 @@ function MtKpiCard({ title, value, sub, icon, color, readOnly, preview }) {
 function InvoiceMatchingScreen() {
   const [selected, setSelected] = useStateMt('m1');
   const [tab, setTab] = useStateMt('All');
-  const row = MATCH_ROWS.find((r) => r.id === selected);
+  const [view, setView] = useStateMt('table');
+  const [statusOv, setStatusOv] = useStateMt({});
+  const rows0 = MATCH_ROWS.map((r) => statusOv[r.id] ? { ...r, status: statusOv[r.id] } : r);
+  const tabMatch = { All: () => true, 'Unmatched Bank': (r) => r.status === 'Unmatched Bank', 'Unmatched Invoices': (r) => r.status === 'Unmatched Invoice',
+    'Potential Matches': (r) => r.status === 'Potential Match', 'Pending Review': (r) => r.status === 'Pending Review', 'Exceptions': (r) => r.status === 'Exception', 'Matched': (r) => r.status === 'Matched',
+    'Ready for Reconciliation': (r) => r.status === 'Ready for Reconciliation', 'Match Rejected': (r) => r.status === 'Match Rejected' };
+  const KPI_FILTER = ['Unmatched Bank', 'Unmatched Invoices', 'Potential Matches', 'Pending Review', 'Exceptions', 'Matched'];
+  const rows = rows0.filter(tabMatch[tab] || (() => true));
+  const PER = 8;
+  const [page, setPage] = useStateMt(1);
+  const pages = Math.max(1, Math.ceil(rows.length / PER));
+  const pg = Math.min(page, pages);
+  const visible = rows.slice((pg - 1) * PER, pg * PER);
+  const row = rows0.find((r) => r.id === selected);
+  const setStatus = (id, s) => setStatusOv((m) => ({ ...m, [id]: s }));
+  const tabCount = (label) => rows0.filter(tabMatch[label] || (() => true)).length;
+  const selectTab = (t) => { setTab(t); setPage(1); };
   return (
     <div>
       <PageHeader title="Invoice Matching — Bank Feed" description="Match supplier invoices to bank transactions before reconciliation. Auto-matched, never auto-approved."
@@ -48,18 +65,26 @@ function InvoiceMatchingScreen() {
           <Button variant="primary" icon="wand-2">Run Auto-Match</Button>
         </>} />
       <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
-        {MATCH_KPIS.map((k, i) => <MtKpiCard key={i} {...k} />)}
+        {MATCH_KPIS.map((k, i) => { const f = KPI_FILTER[i]; return <MtKpiCard key={i} {...k} active={tab === f} onClick={() => selectTab(tab === f ? 'All' : f)} />; })}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid hsl(var(--border))', marginBottom: 14, flexWrap: 'wrap' }}>
-        {MATCH_TABS.map(([label, count]) => {
-          const on = label === tab;
-          return <button key={label} onClick={() => setTab(label)} style={{ border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 13, fontWeight: on ? 600 : 500,
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, borderBottom: '1px solid hsl(var(--border))', marginBottom: 14, flexWrap: 'wrap' }}>
+        {MATCH_TABS.map(([label]) => {
+          const on = label === tab; const count = tabCount(label);
+          return <button key={label} onClick={() => selectTab(label)} style={{ border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 13, fontWeight: on ? 600 : 500,
             color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', borderBottom: on ? '2px solid hsl(var(--primary))' : '2px solid transparent', padding: '8px 11px', marginBottom: -1, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
             {label}<span style={{ background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--muted))', color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontSize: 11, fontWeight: 700, padding: '0 6px', borderRadius: 999 }}>{count}</span></button>;
         })}
+        <div style={{ marginLeft: 'auto', display: 'inline-flex', border: '1px solid hsl(var(--input))', borderRadius: 8, overflow: 'hidden', marginBottom: 6 }}>
+          <button onClick={() => setView('table')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: view === 'table' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'table' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="table" size={15} />Table</button>
+          <button onClick={() => setView('kanban')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', borderLeft: '1px solid hsl(var(--input))', background: view === 'kanban' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'kanban' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '7px 12px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="kanban" size={15} />Kanban</button>
+        </div>
       </div>
 
+      {view === 'kanban' ? <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 16, alignItems: 'start' }}>
+        <MatchKanban rows={rows0} onSelect={setSelected} selected={selected} />
+        <MatchDetail row={row} onStatus={setStatus} />
+      </div> :
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 16, alignItems: 'start' }}>
         <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           {/* dual-column header */}
@@ -70,7 +95,8 @@ function InvoiceMatchingScreen() {
             <div style={{ padding: '9px 12px', fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--success))', display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="file-text" size={13} />Supplier Invoice</div>
             <div style={{ padding: '9px 12px', fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>Match<ReadOnlyTag /></div>
           </div>
-          {MATCH_ROWS.map((r) => {
+          {rows.length === 0 && <div style={{ padding: '26px 12px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No items in this tab.</div>}
+          {visible.map((r) => {
             const isSel = selected === r.id;
             const noBank = r.bankAmt === '—'; const noInv = r.invAmt === '—';
             return <div key={r.id} onClick={() => setSelected(r.id)} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 30px 1fr 96px', borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent', alignItems: 'center' }}>
@@ -94,11 +120,11 @@ function InvoiceMatchingScreen() {
               <div style={{ padding: '11px 12px' }}><MtConf conf={r.conf} /></div>
             </div>;
           })}
-          <div style={{ padding: '6px 14px 8px' }}><Pagination label="Showing 1 to 8 of 389 items" /></div>
+          <div style={{ padding: '6px 14px 8px' }}><Pagination label={`Showing ${rows.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, rows.length)} of ${rows.length} items`} page={pg} pages={pages} onPage={setPage} /></div>
         </div>
 
-        <MatchDetail row={row} />
-      </div>
+        <MatchDetail row={row} onStatus={setStatus} />
+      </div>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
         <Panel title="Matching Rules" action={<span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>Auto-match criteria</span>}>
@@ -125,7 +151,24 @@ function MtSide({ heading, icon, accent, rows, faded }) {
       <span style={{ color: 'hsl(var(--muted-foreground))' }}>{k}</span><span style={{ fontWeight: hl ? 700 : 500, textAlign: 'right' }}>{v}</span></div>)}
   </div>;
 }
-function MatchDetail({ row: r }) {
+function MatchKanban({ rows, onSelect, selected }) {
+  const cols = ['Unmatched Bank', 'Potential Match', 'Pending Review', 'Exception', 'Matched'];
+  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols.length}, 1fr)`, gap: 12, alignItems: 'start' }}>
+    {cols.map((c) => { const items = rows.filter((r) => r.status === c);
+      return <div key={c} style={{ background: 'hsl(var(--muted) / 0.35)', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 10, minHeight: 120 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}><MtPill status={c} /><span style={{ fontSize: 11, fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>{items.length}</span></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map((r) => <div key={r.id} onClick={() => onSelect(r.id)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, padding: 9, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600 }}>{r.supplier}</div>
+            <div style={{ fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'hsl(var(--muted-foreground))', margin: '2px 0' }}>{r.im}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontSize: 12, fontWeight: 700 }}>{r.invAmt !== '—' ? r.invAmt : r.bankAmt}</span><MtConf conf={r.conf} /></div>
+          </div>)}
+          {items.length === 0 && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', textAlign: 'center', padding: '8px 0' }}>—</div>}
+        </div>
+      </div>; })}
+  </div>;
+}
+function MatchDetail({ row: r, onStatus }) {
   const noBank = r.bankAmt === '—'; const noInv = r.invAmt === '—';
   const canConfirm = !noBank && !noInv;
   const needsOverride = r.mismatch || r.status === 'Exception';
@@ -181,8 +224,8 @@ function MatchDetail({ row: r }) {
           {r.status === 'Ready for Reconciliation' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="primary" icon="arrow-right" style={{ flex: 1, justifyContent: 'center' }}>Move to Reconciliation</Button><UpcomingPill /></span>}
           {noBank && <Button variant="outline" icon="search" style={{ justifyContent: 'center' }}>Find Matching Transaction</Button>}
           {canConfirm && <div style={{ display: 'flex', gap: 9 }}>
-            <Button variant="primary" icon="check" style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))' }}>{needsOverride ? 'Override & Confirm' : 'Confirm Match'}</Button>
-            <Button variant="outline" icon="x" style={{ flex: 1, justifyContent: 'center' }}>Reject</Button>
+            <Button variant="primary" icon="check" onClick={() => onStatus && onStatus(r.id, 'Matched')} style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))' }}>{needsOverride ? 'Override & Confirm' : 'Confirm Match'}</Button>
+            <Button variant="outline" icon="x" onClick={() => onStatus && onStatus(r.id, 'Match Rejected')} style={{ flex: 1, justifyContent: 'center' }}>Reject</Button>
           </div>}
           <button style={{ border: 'none', background: 'transparent', color: 'hsl(var(--primary))', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>Match to a different invoice →</button>
         </div>

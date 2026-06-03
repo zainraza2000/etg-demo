@@ -12,11 +12,25 @@ const ctInput = { width: '100%', height: 42, border: '1px solid hsl(var(--input)
 function CtText({ value, placeholder, sub }) {
   return <div><input defaultValue={value} placeholder={placeholder} style={ctInput} />{sub && <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>{sub}</div>}</div>;
 }
-function CtSelect({ value, sub, icon, dot }) {
-  return <div><div style={{ ...ctInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-    {icon && <Icon name={icon} size={16} color="hsl(var(--muted-foreground))" />}
-    {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />}
-    <span style={{ flex: 1 }}>{value}</span><Icon name="chevron-down" size={16} color="hsl(var(--muted-foreground))" /></div>
+function CtSelect({ value, sub, icon, dot, options }) {
+  const [v, setV] = useStateCT(value || '');
+  const [open, setOpen] = useStateCT(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  const opts = options || [v, 'Option A', 'Option B'].filter(Boolean);
+  return <div ref={ref} style={{ position: 'relative' }}>
+    <div onClick={() => setOpen((o) => !o)} style={{ ...ctInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      {icon && <Icon name={icon} size={16} color="hsl(var(--muted-foreground))" />}
+      {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />}
+      <span style={{ flex: 1, color: v ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}>{v || 'Select…'}</span><Icon name="chevron-down" size={16} color="hsl(var(--muted-foreground))" style={{ transform: open ? 'rotate(180deg)' : 'none' }} /></div>
+    {open && <div style={{ position: 'absolute', top: 44, left: 0, right: 0, zIndex: 50, maxHeight: 220, overflowY: 'auto', background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 9, boxShadow: 'var(--shadow-lg)', padding: 4 }}>
+      {opts.map((o) => <div key={o} onClick={() => { setV(o); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13.5, background: o === v ? 'hsl(var(--muted))' : 'transparent' }}>
+        <span style={{ width: 14 }}>{o === v && <Icon name="check" size={14} color="hsl(var(--primary))" />}</span>{o}</div>)}
+    </div>}
     {sub && <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>{sub}</div>}</div>;
 }
 function CtArea({ value, count }) {
@@ -133,9 +147,9 @@ function CreateTicketScreen({ onClose }) {
         <CtSection n="2" title="Issue Details">
           <div style={{ display: 'flex', gap: 22 }}>
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.7fr', gap: 16, alignItems: 'start' }}>
-              <CtField label="Issue Type" req><CtSelect value="Internet / NBN Issue" icon="globe" /></CtField>
+              <CtField label="Issue Type" req><CtSelect value="Internet / NBN Issue" icon="globe" options={ISSUE_TYPES} /></CtField>
               <CtField label="Issue Summary" req><CtText value="Internet is down – entire office no connectivity" /></CtField>
-              <CtField label="Source" req><CtSelect value="Phone" icon="phone" /></CtField>
+              <CtField label="Source" req><CtSelect value="Phone" icon="phone" options={SOURCES} /></CtField>
               <CtField label="Issue Description" req><CtArea value="The internet connection at our office is not working. No staff can access the internet including WiFi and wired connections." count="142/1000" /></CtField>
             </div>
             <div style={{ width: 250, flexShrink: 0, border: '1px solid hsl(var(--info) / 0.3)', background: 'hsl(var(--info-subtle))', borderRadius: 10, padding: 15 }}>
@@ -153,12 +167,12 @@ function CreateTicketScreen({ onClose }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.55fr) minmax(0,1fr)', gap: 16 }}>
           <CtSection n="3" title="Additional Information">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-              <CtField label="Priority" req><CtSelect value="High" dot="hsl(var(--destructive))" /></CtField>
-              <CtField label="Job Classification"><CtSelect value="Service Call" icon="briefcase" /></CtField>
+              <CtField label="Priority" req><CtSelect value="High" dot="hsl(var(--destructive))" options={PRIORITIES} /></CtField>
+              <CtField label="Job Classification"><CtSelect value="Service Call" icon="briefcase" options={JOB_CLASSIFICATIONS} /></CtField>
               <CtField label="Due by"><div style={{ ...ctInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}><Icon name="calendar-clock" size={16} color="hsl(var(--muted-foreground))" /><span style={{ flex: 1 }}>15 May 2026, <SiteTime time="12:00 PM" zone="Australia/Sydney" oneline /></span><Icon name="chevron-down" size={16} color="hsl(var(--muted-foreground))" /></div></CtField>
-              <CtField label="Customer Impact"><CtSelect value="Site disrupted" icon="alert-triangle" /></CtField>
-              <CtField label="Affects Multiple Sites?"><CtSelect value="No" /></CtField>
-              <CtField label="Preferred Contact Method"><CtSelect value="Phone Call" /></CtField>
+              <CtField label="Customer Impact"><CtSelect value="Site disrupted" icon="alert-triangle" options={CUSTOMER_IMPACT} /></CtField>
+              <CtField label="Affects Multiple Sites?"><CtSelect value="No" options={['No', 'Yes']} /></CtField>
+              <CtField label="Preferred Contact Method"><CtSelect value="Phone Call" options={['Phone Call', 'Email', 'SMS']} /></CtField>
               <CtField label="Preferred Contact Time"><CtSelect value="Anytime" /></CtField>
               <CtField label="Is the site currently operational?"><CtSelect value="No – Not Operational" /></CtField>
               <CtField label="Best time for technician to attend"><CtSelect value="ASAP" /></CtField>

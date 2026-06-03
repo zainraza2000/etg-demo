@@ -8,6 +8,13 @@ function CpField({ label, req, hint, tag, children }) {
     {hint && <span style={{ fontSize: 11.5, color: 'hsl(var(--primary))', fontWeight: 500, cursor: 'pointer' }}>{hint}</span>}</div>{children}</div>;
 }
 function CpText({ value, ph }) { return <input defaultValue={value} placeholder={ph} style={cpInput} />; }
+// description input with a live char counter
+function CpDescription({ ph, max = 120 }) {
+  const [v, setV] = useStateCP('');
+  return <div><input value={v} onChange={(e) => setV(e.target.value.slice(0, max))} placeholder={ph} style={cpInput} />
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>
+      <span>Short summary shown in lists — longer detail goes in Project Notes below.</span><span>{v.length}/{max}</span></div></div>;
+}
 // a selected related-record shown as a locked id chip + name, still a picker (chevron)
 function CpSelected({ id, name }) {
   return <div style={{ ...cpInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
@@ -33,9 +40,24 @@ function CpDashed({ label, big }) {
     {big ? <span style={{ fontSize: 19, fontWeight: 800, color: 'hsl(var(--muted-foreground))' }}>—</span> : <span style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))' }}>{label}</span>}
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}><Icon name="loader" size={12} />Calculating…</span></div>;
 }
-function CpSelect({ value, dot, ph }) {
-  return <div style={{ ...cpInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: value ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}>
-    {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />}<span style={{ flex: 1 }}>{value || ph}</span><Icon name="chevron-down" size={15} color="hsl(var(--muted-foreground))" /></div>;
+function CpSelect({ value, dot, ph, options }) {
+  const [v, setV] = useStateCP(value || '');
+  const [open, setOpen] = useStateCP(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+  const opts = options || ['Option A', 'Option B', 'Option C'];
+  return <div ref={ref} style={{ position: 'relative' }}>
+    <div onClick={() => setOpen((o) => !o)} style={{ ...cpInput, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: v ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}>
+      {dot && <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />}<span style={{ flex: 1 }}>{v || ph}</span><Icon name="chevron-down" size={15} color="hsl(var(--muted-foreground))" style={{ transform: open ? 'rotate(180deg)' : 'none' }} /></div>
+    {open && <div style={{ position: 'absolute', top: 44, left: 0, right: 0, zIndex: 50, maxHeight: 220, overflowY: 'auto', background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 9, boxShadow: 'var(--shadow-lg)', padding: 4 }}>
+      {opts.map((o) => <div key={o} onClick={() => { setV(o); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, background: o === v ? 'hsl(var(--muted))' : 'transparent' }}>
+        <span style={{ width: 14 }}>{o === v && <Icon name="check" size={14} color="hsl(var(--primary))" />}</span>{o}</div>)}
+    </div>}
+  </div>;
 }
 function CpMoney({ value, suffix }) {
   return <div style={{ position: 'relative' }}><span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--muted-foreground))', fontSize: 13.5 }}>$</span>
@@ -43,13 +65,14 @@ function CpMoney({ value, suffix }) {
 }
 function CpArea({ ph }) { return <textarea placeholder={ph} style={{ ...cpInput, height: 70, padding: 11, resize: 'none', lineHeight: 1.5 }} />; }
 function CpToggle({ label, on }) {
+  const [v, setV] = useStateCP(!!on);
   return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0' }}>
     <span style={{ fontSize: 13 }}>{label}</span>
-    <span style={{ width: 38, height: 22, borderRadius: 999, background: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.35)', position: 'relative', cursor: 'pointer', transition: 'background .15s' }}>
-      <span style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: 'var(--shadow-sm)', transition: 'left .15s' }} /></span></div>;
+    <span onClick={() => setV((x) => !x)} style={{ width: 38, height: 22, borderRadius: 999, background: v ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.35)', position: 'relative', cursor: 'pointer', transition: 'background .15s' }}>
+      <span style={{ position: 'absolute', top: 2, left: v ? 18 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: 'var(--shadow-sm)', transition: 'left .15s' }} /></span></div>;
 }
-function CpPanel({ title, children, accent, tag }) {
-  return <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, boxShadow: 'var(--shadow-sm)' }}>
+function CpPanel({ title, children, accent, tag, style }) {
+  return <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 18, boxShadow: 'var(--shadow-sm)', ...style }}>
     <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 15px', display: 'flex', alignItems: 'center', gap: 7 }}>{accent && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent }} />}{title}{tag && <span style={{ marginLeft: 2 }}>{tag}</span>}</h3>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>{children}</div></div>;
 }
@@ -62,6 +85,14 @@ function CpReadout({ label }) {
 }
 function CpScore({ label }) {
   return <CpField label={label}><div style={{ position: 'relative' }}><input defaultValue="0" style={cpInput} /><span style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>/100</span></div></CpField>;
+}
+
+function CpAiSummary() {
+  const [text, setText] = useStateCP('');
+  return <CpField label="Automation Notes / AI Summary" tag={<ReadOnlyTag />}>
+    <div style={{ ...cpInput, height: 64, padding: 11, background: 'hsl(var(--muted) / 0.45)', color: 'hsl(var(--muted-foreground))', fontSize: 12.5, lineHeight: 1.45, cursor: 'default', overflowY: 'auto' }}>{text || 'AI summary will appear here once the project is created.'}</div>
+    <button onClick={() => setText('This CCTV & electrical fit-out for ABC Corporate (Sydney) is well-scoped at a 30% target margin. Job readiness is strong; main risks are long-lead camera stock and after-hours site access. Recommend confirming the parts order early and locking the technician with the security licence.')} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', height: 38, marginTop: 9, borderRadius: 8, border: '1px solid hsl(258 70% 86%)', background: 'hsl(258 80% 96%)', color: 'hsl(258 60% 50%)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><Icon name="sparkles" size={15} />Generate AI Summary</button>
+  </CpField>;
 }
 
 function CreateProjectScreen({ onClose }) {
@@ -105,11 +136,11 @@ function CreateProjectScreen({ onClose }) {
         })}
       </div>
 
-      {/* Row 1: Core / Financial / Operational */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
-        <CpPanel title="Core Project Details">
+      {/* Tab: Project Info */}
+      {tab === 'Project Info' && <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <CpPanel title="Core Project Details" style={{ flex: '1 1 340px' }}>
           <CpField label="Project Name" req><CpText ph="Enter project name" /></CpField>
-          <CpField label="Description"><div><CpText ph="One-line summary of the project" /><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>Short summary shown in lists — longer detail goes in Project Notes below.</div></div></CpField>
+          <CpField label="Description"><CpDescription ph="One-line summary of the project" /></CpField>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Client" req><CpSelected id="CLI-000023" name="ABC Corporate" /></CpField>
             <CpField label="Primary Site / Location" req hint="+ New"><CpSelected id="SITE-000050" name="Sydney Office — Level 1" /></CpField>
@@ -120,11 +151,11 @@ function CreateProjectScreen({ onClose }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Status" tag={<ReadOnlyTag />}><CpBadgeRO status="Quoted" /></CpField>
-            <CpField label="Priority" req><CpSelect value="Medium" dot="hsl(var(--warning))" /></CpField>
+            <CpField label="Priority" req><CpSelect value="Medium" dot="hsl(var(--warning))" options={PRIORITIES} /></CpField>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <CpField label="Service Type" req><CpSelect value="Mixed" /></CpField>
-            <CpField label="Job Type" req><CpSelect value="Installation" /></CpField>
+            <CpField label="Service Type" req><CpSelect value="Mixed" options={PROJECT_SERVICE_TYPES} /></CpField>
+            <CpField label="Job Type" req><CpSelect value="Installation" options={['Installation', 'Service', 'Maintenance', 'Project Work', 'Upgrade']} /></CpField>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Project Stage" tag={<ReadOnlyTag />}><CpBadgeRO status="Planned" /></CpField>
@@ -132,8 +163,11 @@ function CreateProjectScreen({ onClose }) {
           </div>
           <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="info" size={12} />Status &amp; stage advance through the project's action buttons, not a dropdown.</div>
         </CpPanel>
+      </div>}
 
-        <CpPanel title="Financial Control">
+      {/* Tab: Financials */}
+      {tab === 'Financials' && <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <CpPanel title="Financial Control" style={{ flex: '1 1 420px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Quoted Value (AUD)" req><CpMoney value="0.00" /></CpField>
             <CpField label="Target Margin (0–1)" req><CpText value="0.30" /></CpField>
@@ -156,8 +190,11 @@ function CreateProjectScreen({ onClose }) {
             <div style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 5, color: 'hsl(var(--primary))', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}><Icon name="calculator" size={13} />Margin Calculator</div>
           </div>
         </CpPanel>
+      </div>}
 
-        <CpPanel title="Operational Details">
+      {/* Tab: Scheduling */}
+      {tab === 'Scheduling' && <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <CpPanel title="Operational Details" style={{ flex: '1 1 420px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Start Date"><CpSelect ph="Select date" /></CpField>
             <CpField label="Assigned Technicians" hint="+ Add"><CpSelect ph="Select technicians" /></CpField>
@@ -171,58 +208,67 @@ function CreateProjectScreen({ onClose }) {
           <CpField label="Site Access Requirements"><CpArea ph="Enter site access requirements" /></CpField>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <CpField label="Risk Level" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
-            <CpField label="Project Tags"><CpSelect ph="Add tags..." /></CpField>
+            <CpField label="Project Tags"><CpSelect ph="Add tags..." options={['CCTV', 'Electrical', 'Priority', 'Government', 'Retention']} /></CpField>
           </div>
         </CpPanel>
-      </div>
+      </div>}
 
-      {/* Row 2: five operational panels */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
-        <CpPanel title="Asset Impact" tag={<UpcomingPill />}>
+      {/* Tab: Assets */}
+      {tab === 'Assets' && <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <CpPanel title="Asset Impact" tag={<UpcomingPill />} style={{ flex: '1 1 340px' }}>
           <CpField label="Primary Asset" tag={<PreviewPill />}><div style={{ position: 'relative' }}><input placeholder="Search asset or enter ID (e.g. EG-0042)" style={{ ...cpInput, paddingRight: 32, background: 'hsl(var(--muted) / 0.45)', color: 'hsl(var(--muted-foreground))' }} /><span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }}><Icon name="search" size={15} color="hsl(var(--muted-foreground))" /></span></div></CpField>
-          <CpField label="Asset Criticality"><CpSelect ph="Select criticality" /></CpField>
-          <CpField label="Asset Impact"><CpSelect ph="Select impact" /></CpField>
+          <CpField label="Asset Criticality"><CpSelect ph="Select criticality" options={['High', 'Medium', 'Low']} /></CpField>
+          <CpField label="Asset Impact"><CpSelect ph="Select impact" options={['Site disrupted', 'Degraded', 'No impact']} /></CpField>
           <CpField label="Assets Affected" tag={<PreviewPill />}><div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>None linked yet</div></CpField>
           <CpField label="Asset Notes"><CpArea ph="Enter asset impact details" /></CpField>
         </CpPanel>
-        <CpPanel title="Team & Resources" tag={<UpcomingPill />}>
-          <CpField label="Internal Team" hint="+ Add"><CpSelect ph="Select team members" /></CpField>
+        <CpPanel title="Team & Resources" tag={<UpcomingPill />} style={{ flex: '1 1 340px' }}>
+          <CpField label="Internal Team" hint="+ Add"><CpSelect ph="Select team members" options={['John Manager', 'Sarah Chen', 'Priya Nair']} /></CpField>
           <CpField label="Labour Hours (Budget)" tag={<PreviewPill />}><CpMuted value="0.00" /></CpField>
-          <CpField label="Equipment Required" hint="+ Add"><CpSelect ph="Select equipment" /></CpField>
+          <CpField label="Equipment Required" hint="+ Add"><CpSelect ph="Select equipment" options={['EWP / Scissor lift', 'Test set', 'Ladder']} /></CpField>
           <CpField label="Special Requirements"><CpArea ph="Enter special requirements" /></CpField>
         </CpPanel>
-        <CpPanel title="Parts &amp; Supplier Dependency" tag={<UpcomingPill />}>
-          <CpField label="Parts Ordered Status"><CpSelect value="Not Ordered" dot="hsl(var(--muted-foreground))" /></CpField>
-          <CpField label="Parts Received Status"><CpSelect value="Not Received" dot="hsl(var(--muted-foreground))" /></CpField>
+      </div>}
+
+      {/* Tab: Parts & Suppliers */}
+      {tab === 'Parts & Suppliers' && <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <CpPanel title="Parts &amp; Supplier Dependency" tag={<UpcomingPill />} style={{ flex: '1 1 340px' }}>
+          <CpField label="Parts Ordered Status"><CpSelect value="Not Ordered" dot="hsl(var(--muted-foreground))" options={['Not Ordered', 'Ordered', 'Partially Ordered']} /></CpField>
+          <CpField label="Parts Received Status"><CpSelect value="Not Received" dot="hsl(var(--muted-foreground))" options={['Not Received', 'Received', 'Partially Received']} /></CpField>
           <CpField label="Supplier / Manufacturer" tag={<PreviewPill />}><CpMuted value="Select supplier" /></CpField>
           <CpField label="Critical Parts / Long Lead Items"><CpArea ph="List critical or long lead items" /></CpField>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'hsl(var(--primary))', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}><Icon name="plus" size={13} />Add Parts List</div>
         </CpPanel>
-        <CpPanel title="Compliance &amp; Documentation" tag={<UpcomingPill />}>
+      </div>}
+
+      {/* Tab: Compliance */}
+      {tab === 'Compliance' && <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <CpPanel title="Compliance &amp; Documentation" tag={<UpcomingPill />} style={{ flex: '1 1 340px' }}>
           <CpToggle label="SWMS Required" />
           <CpToggle label="Photos Required" on />
           <CpToggle label="Asset Records Required" on />
           <CpToggle label="Commissioning Required" />
           <CpToggle label="Customer Sign-off Required" on />
           <CpToggle label="Defect Check Required" />
-          <CpField label="Required Documents" hint="+ Add"><CpSelect ph="Select documents" /></CpField>
+          <CpField label="Required Documents" hint="+ Add"><CpSelect ph="Select documents" options={['SWMS', 'Test certificate', 'As-built drawings']} /></CpField>
           <CpField label="Compliance Notes"><CpArea ph="Enter compliance notes" /></CpField>
         </CpPanel>
-        <CpPanel title="ETG Elite Intelligence" tag={<UpcomingPill />}>
+      </div>}
+
+      {/* Tab: Risk & Automation */}
+      {tab === 'Risk & Automation' && <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+        <CpPanel title="ETG Elite Intelligence" tag={<UpcomingPill />} style={{ flex: '1 1 420px' }}>
           <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', lineHeight: 1.5, marginTop: -2 }}>Scores are produced by the intelligence engine — they can't be entered by hand.</div>
           <CpReadout label="Job Readiness Score" />
           <CpReadout label="Delivery Risk Score" />
           <CpReadout label="Profit Risk Score" />
           <CpField label="Client Relationship Risk" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
-          <CpField label="Automation Notes / AI Summary" tag={<ReadOnlyTag />}>
-            <div style={{ ...cpInput, height: 64, padding: 11, background: 'hsl(var(--muted) / 0.45)', color: 'hsl(var(--muted-foreground))', fontSize: 12.5, lineHeight: 1.45, cursor: 'default' }}>AI summary will appear here once the project is created.</div>
-          </CpField>
-          <button style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', height: 38, borderRadius: 8, border: '1px solid hsl(258 70% 86%)', background: 'hsl(258 80% 96%)', color: 'hsl(258 60% 50%)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><Icon name="sparkles" size={15} />Generate AI Summary</button>
+          <CpAiSummary />
         </CpPanel>
-      </div>
+      </div>}
 
-      {/* Row 3: notes & files */}
-      <CpPanel title="Additional Notes & Files">
+      {/* Tab: Notes & Files */}
+      {tab === 'Notes & Files' && <CpPanel title="Additional Notes & Files" style={{ marginBottom: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>
           <CpField label="Project Notes"><textarea placeholder="Enter any additional notes about the project" style={{ ...cpInput, height: 92, padding: 11, resize: 'none' }} /></CpField>
           <CpField label="Attachments" tag={<UpcomingPill />}><div style={{ border: '1.5px dashed hsl(var(--border))', borderRadius: 9, padding: '20px 12px', textAlign: 'center', height: 92, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'hsl(var(--muted) / 0.35)' }}>
@@ -230,7 +276,7 @@ function CreateProjectScreen({ onClose }) {
           <CpField label="Linked Files" tag={<PreviewPill />}><div style={{ height: 92, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}><div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>No files linked yet</div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'hsl(var(--muted-foreground))', fontSize: 12.5, fontWeight: 500 }}><Icon name="plus" size={13} />Add File</div></div></CpField>
         </div>
-      </CpPanel>
+      </CpPanel>}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, margin: '18px 0 8px' }}>
         <Button variant="outline" onClick={onClose}>Cancel</Button>

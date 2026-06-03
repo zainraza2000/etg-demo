@@ -129,7 +129,8 @@ function Sidebar({ active, onNavigate, collapsed, onToggle }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
               {Object.keys(INVOICE_SUB).map((group) => <div key={group}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'hsl(215 20% 60%)', marginBottom: 8 }}>{group}</div>
-                {INVOICE_SUB[group].map((s) => <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 13, color: 'hsl(215 25% 85%)', cursor: 'pointer' }}>
+                {INVOICE_SUB[group].map((s) => <div key={s.label} onClick={() => { onNavigate('invoices'); setHover(null); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 13, color: 'hsl(215 25% 85%)', cursor: 'pointer' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = 'hsl(215 25% 85%)'}>
                   <Icon name={s.icon} size={14} color="hsl(215 20% 65%)" /><span style={{ flex: 1 }}>{s.label}</span>{s.up && <Icon name="sparkles" size={11} color="hsl(258 70% 72%)" />}</div>)}
               </div>)}
             </div>
