@@ -83,7 +83,7 @@ function CalendarScreen() {
   if (newVisitTech !== null) return <NewVisitForm prefill={{ techIndex: newVisitTech }} techIndex={newVisitTech} onCancel={() => setNewVisitTech(null)} onCreate={() => setNewVisitTech(null)} />;
   // view + filter helpers (Day narrows to today's column; search/KPI/More narrow visible jobs)
   const GD = calView === 'Day' ? [2] : [0, 1, 2, 3, 4, 5, 6];
-  const KMATCH = { blocked: 'Blocked', inprog: 'In Progress', unassigned: 'Unassigned', ot: 'Overdue' };
+  const KMATCH = { blocked: 'Blocked', inprog: 'In Progress', unassigned: 'Unassigned', ot: 'Overdue', completed: 'Completed' };
   const jobVisible = (job, tech) => {
     if (!job) return false;
     if (calSearch) { const q = calSearch.toLowerCase(); if (!(`${job.title} ${job.client} ${job.loc || ''} ${tech || ''}`.toLowerCase().includes(q))) return false; }
@@ -106,6 +106,7 @@ function CalendarScreen() {
   const CMD_KPIS = [
     { key: 'today', title: 'Jobs Today', value: '18', sub: '▲3 vs yesterday', icon: 'calendar-days', color: 'blue' },
     { key: 'inprog', title: 'In Progress', value: '9', sub: '50% of today', icon: 'loader', color: 'blue' },
+    { key: 'completed', title: 'Jobs Completed', value: '6', sub: 'Today', icon: 'check-circle-2', color: 'green' },
     { key: 'unassigned', title: 'Unassigned', value: '3', sub: 'High priority', icon: 'user-x', color: 'violet' },
     { key: 'blocked', title: 'Blocked', value: '2', sub: 'Action required', icon: 'ban', color: 'red' },
     { key: 'ot', title: 'Overtime Risk', value: '4', sub: 'This week', icon: 'alarm-clock', color: 'orange' },
@@ -133,7 +134,7 @@ function CalendarScreen() {
         </div>
       </div>
       {/* 8 clickable KPI filters */}
-      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 11 }}>
+      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 11 }}>
         {CMD_KPIS.map((k) => { const on = kpiFilter === k.key;
           return <div key={k.key} onClick={() => setKpiFilter(on ? null : k.key)} style={{ background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${on ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 11, padding: 12, boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -252,13 +253,13 @@ function CalendarScreen() {
           {/* legend */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '11px 16px', borderTop: '1px solid hsl(var(--border))', flexWrap: 'wrap' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              {[['In Progress', 'hsl(var(--success))'], ['Planned', 'hsl(var(--info))'], ['Unassigned', 'hsl(var(--destructive))'], ['Completed', 'hsl(var(--success))']].map(([l, c], i) =>
+              {[['In Progress', 'hsl(var(--success))'], ['Planned', 'hsl(var(--info))'], ['Unassigned', 'hsl(var(--destructive))'], ['Completed', 'hsl(var(--success))'], ['Cancelled', 'hsl(var(--muted-foreground))']].map(([l, c], i) =>
                 <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />{l}</span>)}
             </span>
             <span style={{ width: 1, height: 16, background: 'hsl(var(--border))' }} />
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>Presence</span>
-              {[['Travelling', 'hsl(var(--warning))'], ['On Break', 'hsl(var(--muted-foreground))']].map(([l, c], i) =>
+              {[['On Site', 'hsl(var(--success))'], ['Travelling', 'hsl(var(--warning))'], ['Available', 'hsl(var(--info))'], ['On Break', 'hsl(var(--muted-foreground))']].map(([l, c], i) =>
                 <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />{l}</span>)}
               <UpcomingPill compact />
             </span>
@@ -356,15 +357,28 @@ function JobDetail({ job }) {
             <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Pending</span>
           </div>
           <div style={{ height: 7, background: 'hsl(var(--muted))', borderRadius: 999, overflow: 'hidden' }}><div style={{ height: '100%', width: '100%', background: 'repeating-linear-gradient(90deg, hsl(var(--border)) 0 6px, transparent 6px 12px)' }} /></div>
+          {/* execution stage rail — structure only; live % from mobile clock-in (Upcoming) */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', margin: '12px 0 2px', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 9, left: '10%', right: '10%', height: 2, background: 'hsl(var(--border))' }} />
+            {['On Site', 'Work In Progress', 'Testing', 'Handover', 'Complete'].map((s, i) =>
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, flex: 1, position: 'relative', zIndex: 1 }}>
+                <span style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid hsl(var(--border))', background: 'hsl(var(--card))' }} />
+                <span style={{ fontSize: 9, fontWeight: 600, color: 'hsl(var(--muted-foreground))', textAlign: 'center', lineHeight: 1.2 }}>{s}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>—</span>
+              </div>)}
+          </div>
           <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 9, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="info" size={12} />Live progress arrives with the technician mobile clock-in.</div>
         </div>
       </Panel>
 
       <Panel title="Quick Actions">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[['eye', 'View Job', false], ['ticket', 'Create Service Ticket', false], ['activity', 'Update Progress', true], ['camera', 'Upload Photos', true]].map(([ic, l, up], i) =>
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 11px', fontSize: 12.5, fontWeight: 500, color: up ? 'hsl(var(--muted-foreground))' : 'hsl(var(--primary))', cursor: 'pointer' }}>
-              <Icon name={ic} size={14} />{l}{up && <span style={{ marginLeft: 'auto' }}><UpcomingPill compact /></span>}</div>)}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <CalQuickAction icon="eye" label="Open Job" />
+          <CalQuickAction icon="users" label="Reassign" reassign />
+          <CalQuickAction icon="send" label="Notify Client" notify />
+          <CalQuickAction icon="package" label="Request Parts" parts />
+          <CalQuickAction icon="calendar-plus" label="Create Return Visit" up />
+          <CalQuickAction icon="activity" label="Update Progress" up />
         </div>
       </Panel>
 
@@ -379,6 +393,34 @@ function JobDetail({ job }) {
       </Panel>
     </div>
   );
+}
+function CalQuickAction({ icon, label, up, reassign, notify, parts }) {
+  const [state, setState] = React.useState(null); // 'open' for dropdown/popover, or a confirmation string
+  const live = !up;
+  const tile = (children, extraStyle) => <div style={{ position: 'relative' }}>
+    <div onClick={() => { if (up) return;
+        if (reassign || notify) setState(state === 'open' ? null : 'open');
+        else if (parts) setState(state ? null : 'Parts requested');
+        else setState(state ? null : 'Opened'); }}
+      style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 11px', fontSize: 12.5, fontWeight: 500,
+        color: up ? 'hsl(var(--muted-foreground))' : (parts && state ? 'hsl(var(--warning))' : 'hsl(var(--primary))'), cursor: up ? 'default' : 'pointer', ...extraStyle }}>
+      <Icon name={parts && state ? 'package-check' : icon} size={14} />{state && !['open'].includes(state) ? state : label}{up && <span style={{ marginLeft: 'auto' }}><UpcomingPill compact /></span>}</div>
+    {children}
+  </div>;
+  if (reassign && state === 'open') return tile(
+    <div style={{ position: 'absolute', top: 38, left: 0, right: 0, zIndex: 20, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, boxShadow: 'var(--shadow-lg)', overflow: 'hidden' }}>
+      {TECHS.slice(0, 4).map((t) => <div key={t.name} onClick={() => setState(`Reassigned to ${t.name.split(' ')[0]}`)} style={{ padding: '7px 11px', fontSize: 12, cursor: 'pointer', color: 'hsl(var(--foreground))' }}
+        onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted) / 0.5)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>{t.name}</div>)}
+    </div>);
+  if (notify && state === 'open') return tile(
+    <div style={{ position: 'absolute', top: 38, left: 0, right: 0, zIndex: 20, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, boxShadow: 'var(--shadow-lg)', padding: 10 }}>
+      <div style={{ fontSize: 11.5, marginBottom: 8 }}>Send visit reminder to the client?</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button onClick={() => setState('Reminder queued')} style={{ flex: 1, height: 28, border: 'none', borderRadius: 6, background: 'hsl(var(--primary))', color: '#fff', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Send</button>
+        <button onClick={() => setState(null)} style={{ flex: 1, height: 28, border: '1px solid hsl(var(--input))', borderRadius: 6, background: 'hsl(var(--card))', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+      </div>
+    </div>);
+  return tile(null);
 }
 function DRow({ label, tag, children }) {
   return <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, fontSize: 12.5 }}>

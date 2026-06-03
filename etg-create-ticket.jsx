@@ -149,8 +149,9 @@ function CreateTicketScreen({ onClose }) {
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1.7fr', gap: 16, alignItems: 'start' }}>
               <CtField label="Issue Type" req><CtSelect value="Internet / NBN Issue" icon="globe" options={ISSUE_TYPES} /></CtField>
               <CtField label="Issue Summary" req><CtText value="Internet is down – entire office no connectivity" /></CtField>
-              <CtField label="Source" req><CtSelect value="Phone" icon="phone" options={SOURCES} /></CtField>
+              <CtField label="Issue Category" req><CtSelect value="Internet Not Working" icon="wifi" options={['Hardware Fault', 'Software / Config', 'Network / Connectivity', 'Power', 'Physical Damage', 'Access / Permissions', 'Preventive Maintenance', 'Internet Not Working', 'Other']} /></CtField>
               <CtField label="Issue Description" req><CtArea value="The internet connection at our office is not working. No staff can access the internet including WiFi and wired connections." count="142/1000" /></CtField>
+              <CtField label="Source" req><CtSelect value="Phone" icon="phone" options={SOURCES} /></CtField>
             </div>
             <div style={{ width: 250, flexShrink: 0, border: '1px solid hsl(var(--info) / 0.3)', background: 'hsl(var(--info-subtle))', borderRadius: 10, padding: 15 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 7, marginBottom: 8 }}>

@@ -81,6 +81,7 @@ function AssetsScreen() {
         <Select label="Site" value={fSite} options={sites} onChange={setFSite} />
         <Select label="Type" value={fType} options={types} onChange={setFType} />
         <Select label="Criticality" value={fCrit} options={['All', 'High', 'Medium', 'Low']} onChange={setFCrit} />
+        <AssetMoreFilters />
         <div style={{ marginLeft: 'auto', display: 'inline-flex', border: '1px solid hsl(var(--input))', borderRadius: 8, overflow: 'hidden' }}>
           <button onClick={() => setView('list')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: view === 'list' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'list' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 13px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="list" size={15} />List View</button>
           <button onClick={() => setView('map')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', borderLeft: '1px solid hsl(var(--input))', background: view === 'map' ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: view === 'map' ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', fontWeight: 500, fontSize: 13, padding: '8px 11px', cursor: 'pointer', fontFamily: 'inherit' }}><Icon name="map" size={15} />Map View<UpcomingPill compact /></button>
@@ -95,6 +96,7 @@ function AssetsScreen() {
               {['Asset', 'Asset Type', 'Client / Site', 'Location', 'Criticality', 'Status', 'IP Address', 'Warranty', 'Health'].map((h, i) =>
                 <th key={i} style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '11px 12px' }}>
                   {h === 'Status' || h === 'Health' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>{h}<ReadOnlyTag /></span> : h}</th>)}
+              <th style={{ width: 36 }}></th>
             </tr></thead>
             <tbody>
               {visible.length === 0 && <tr><td colSpan={10} style={{ padding: '28px 14px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No assets match the current filters.</td></tr>}
@@ -116,6 +118,7 @@ function AssetsScreen() {
                     <td><div style={{ fontSize: 12.5, color: expired ? 'hsl(var(--destructive))' : 'inherit', fontWeight: expired ? 600 : 400 }}>{a.warranty}</div>
                       <div style={{ fontSize: 11, color: expired ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))', marginTop: 1 }}>({a.warrantyDays})</div></td>
                     <td><span style={{ color: 'hsl(var(--muted-foreground))', fontWeight: 600 }}>—</span></td>
+                    <td onClick={(e) => e.stopPropagation()}><AssetKebab /></td>
                   </tr>
                 );
               })}
@@ -123,7 +126,7 @@ function AssetsScreen() {
           </table>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 8px' }}><PreviewPill />{selCount > 0 && <span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))' }}>{selCount} selected</span>}<div style={{ flex: 1 }}><Pagination label={`Showing ${filtered.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, filtered.length)} of ${filtered.length} assets`} page={pg} pages={pages} onPage={setPage} /></div></div>
         </div>
-        <AssetDetail asset={asset} />
+        <AssetDetail asset={asset} onClose={() => setSelected(null)} />
       </div>}
     </div>
   );
@@ -138,7 +141,39 @@ function MapPlaceholder({ count }) {
   </div>;
 }
 
-function AssetDetail({ asset: a }) {
+function AssetMoreFilters() {
+  const [open, setOpen] = React.useState(false);
+  const extra = [['Manufacturer', false], ['Supplier', false], ['Project', false], ['Cost Centre', false], ['Warranty Status', false], ['Install Date', false], ['Online/Offline State', true]];
+  return <div style={{ position: 'relative' }}>
+    <button onClick={() => setOpen((o) => !o)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 40, padding: '0 12px', background: 'hsl(var(--card))', border: '1px solid hsl(var(--input))', borderRadius: 8, fontSize: 13.5, fontFamily: 'inherit', fontWeight: 500, color: 'hsl(var(--foreground))', cursor: 'pointer', whiteSpace: 'nowrap' }}><Icon name="sliders-horizontal" size={15} color="hsl(var(--muted-foreground))" />More Filters</button>
+    {open && <React.Fragment>
+      <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 30 }} />
+      <div style={{ position: 'absolute', top: 44, left: 0, zIndex: 31, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, boxShadow: 'var(--shadow-lg)', padding: 12, width: 230 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {extra.map(([l, up]) => <div key={l}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>{l}{up && <UpcomingPill compact />}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 32, border: '1px solid hsl(var(--input))', borderRadius: 7, padding: '0 9px', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>All<Icon name="chevron-down" size={13} /></div>
+          </div>)}
+        </div>
+      </div>
+    </React.Fragment>}
+  </div>;
+}
+function AssetKebab() {
+  const [open, setOpen] = React.useState(false);
+  const acts = ['View Asset Profile', 'Run Connectivity Test', 'Create Service Ticket', 'Link Supplier Invoice', 'Update Status', 'Edit Asset'];
+  return <div style={{ position: 'relative' }}>
+    <span onClick={() => setOpen((o) => !o)} style={{ cursor: 'pointer', color: 'hsl(var(--muted-foreground))', display: 'inline-flex' }}><Icon name="more-vertical" size={16} /></span>
+    {open && <React.Fragment>
+      <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 30 }} />
+      <div style={{ position: 'absolute', top: 22, right: 0, zIndex: 31, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 9, boxShadow: 'var(--shadow-lg)', overflow: 'hidden', minWidth: 190 }}>
+        {acts.map((a) => <div key={a} onClick={() => setOpen(false)} style={{ padding: '8px 12px', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap', color: 'hsl(var(--foreground))' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted) / 0.5)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>{a}</div>)}
+      </div>
+    </React.Fragment>}
+  </div>;
+}
+function AssetDetail({ asset: a, onClose }) {
   const expired = a.warranty === 'Expired';
   const critColor = { High: 'hsl(var(--destructive))', Medium: 'hsl(var(--warning))', Low: 'hsl(var(--success))' }[a.criticality];
   const [tab, setTab] = useStateAs('Overview');
@@ -148,7 +183,7 @@ function AssetDetail({ asset: a }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <DeviceTile type={a.type} size={56} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}><StatusPending /></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}><StatusPending /><button onClick={onClose} title="Close" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', display: 'inline-flex', padding: 2 }}><Icon name="x" size={16} /></button></div>
             <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{a.name}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}><IdChip id={a.eg} /></div>
             <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>{a.brand} · {a.model}</div>

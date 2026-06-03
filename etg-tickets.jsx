@@ -52,6 +52,24 @@ function TkKpiCard({ title, value, sub, icon, color, upcoming, onClick, active }
   );
 }
 
+function TicketBoard({ rows, onOpen }) {
+  const cols = ['Open', 'In Progress', 'On Hold', 'Resolved'];
+  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, alignItems: 'start' }}>
+    {cols.map((status) => { const cards = rows.filter((t) => t.status === status);
+      return <div key={status}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><StatusBadge status={status} /><span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{cards.length}</span></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {cards.length === 0 && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '14px 0', textAlign: 'center' }}>No tickets</div>}
+          {cards.map((t) => <div key={t.id} onClick={() => onOpen(t.id)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 12, boxShadow: t.overdue ? 'inset 3px 0 0 hsl(var(--destructive)), var(--shadow-sm)' : 'var(--shadow-sm)', cursor: 'pointer' }}>
+            <IdChip id={t.id} />
+            <div style={{ fontSize: 13, fontWeight: 600, margin: '6px 0 8px' }}>{t.subject}</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><PriorityBadge priority={t.priority} /><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}><Avatar name={t.assignee} size={18} />{t.assignee.split(' ')[0]}</span></div>
+          </div>)}
+        </div>
+      </div>; })}
+  </div>;
+}
+
 function ServiceTicketsScreen({ onNewTicket }) {
   const [previewId, setPreviewId] = useStateTk(null);
   const [previewRect, setPreviewRect] = useStateTk(null);
@@ -62,10 +80,12 @@ function ServiceTicketsScreen({ onNewTicket }) {
   const [fPriority, setFPriority] = useStateTk('All');
   const [fBU, setFBU] = useStateTk('All');
   const [page, setPage] = useStateTk(1);
+  const [view, setView] = useStateTk('list');
+  const [rowsPer, setRowsPer] = useStateTk('10');
   const [kpiFilter, setKpiFilter] = useStateTk(null);
   const [statusOv, setStatusOv] = useStateTk({});
   const [assignOv, setAssignOv] = useStateTk({});
-  const PER = 8;
+  const PER = parseInt(rowsPer, 10) || 10;
   const withOv = (t) => ({ ...t, status: statusOv[t.id] || t.status, assignee: assignOv[t.id] || t.assignee });
   const previewTk = previewId && withOv(TICKETS.find((t) => t.id === previewId));
   const drawerTk = drawerId && withOv(TICKETS.find((t) => t.id === drawerId));
@@ -100,6 +120,7 @@ function ServiceTicketsScreen({ onNewTicket }) {
       <PageHeader title="Service Tickets" description="Track, manage and resolve customer service requests"
         actions={<>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="download">Export</Button><UpcomingPill /></span>
+          <ViewToggle value={view} onChange={setView} options={[{ id: 'list', label: 'List', icon: 'list' }, { id: 'board', label: 'Board', icon: 'layout-grid' }]} />
           <Button variant="outline" icon="filter">Filters</Button>
           <Button variant="primary" icon="plus" onClick={onNewTicket}>New Ticket</Button>
         </>} />
@@ -122,15 +143,16 @@ function ServiceTicketsScreen({ onNewTicket }) {
           { label: 'Business Unit', value: fBU, options: ['All', 'Evolution', 'Localcom', 'Shared'], onChange: (v) => { setFBU(v); setPage(1); } },
         ]} />
 
+      {view === 'board' ? <TicketBoard rows={filtered} onOpen={(id) => setDrawerId(id)} /> :
       <div onMouseLeave={() => setPreviewId(null)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-              {['Ticket ID', 'Subject', 'Client / Site', 'Asset', 'Priority', 'Status', 'Assigned To', 'Due Date'].map((h, i) =>
+              {['Ticket ID', 'Subject', 'Client / Site', 'Asset', 'Priority', 'Status', 'Assigned To', 'Created', 'Due Date'].map((h, i) =>
                 <th key={i} style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '11px 14px' }}>
                   {h === 'Asset' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>Asset<PreviewPill /></span> : h}</th>)}
             </tr></thead>
             <tbody>
-              {rows.length === 0 && <tr><td colSpan={8} style={{ padding: '28px 14px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No tickets match the current filters.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={9} style={{ padding: '28px 14px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No tickets match the current filters.</td></tr>}
               {rows.map((t) => {
                 const isSel = previewId === t.id;
                 return (
@@ -143,14 +165,18 @@ function ServiceTicketsScreen({ onNewTicket }) {
                     <td><PriorityBadge priority={t.priority} /></td>
                     <td><StatusBadge status={t.status} /></td>
                     <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Avatar name={t.assignee} size={24} /><span style={{ fontSize: 12.5 }}>{t.assignee}</span></span></td>
+                    <td style={{ fontSize: 12.5 }}>{t.created}<div style={{ fontSize: 11.5, marginTop: 1 }}><SiteTime time={t.createdT} zone={siteZoneFor(t.client)} small primaryColor="hsl(var(--muted-foreground))" /></div></td>
                     <td style={{ fontSize: 12.5, color: t.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: t.overdue ? 600 : 400 }}>{t.due}<div style={{ fontSize: 11.5, marginTop: 1 }}><SiteTime time={t.dueT} zone={siteZoneFor(t.client)} small primaryColor={t.overdue ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))'} /></div></td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          <div style={{ padding: '0 14px 8px' }}><Pagination label={`Showing ${filtered.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, filtered.length)} of ${filtered.length} tickets`} page={pg} pages={pages} onPage={setPage} /></div>
-      </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px 8px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Rows:</span><Select label="Rows" value={rowsPer} options={['10', '25', '50', '100']} onChange={setRowsPer} /></span>
+            <div style={{ flex: 1 }}><Pagination label={`Showing ${filtered.length === 0 ? 0 : (pg - 1) * PER + 1} to ${Math.min(pg * PER, filtered.length)} of ${filtered.length} tickets`} page={pg} pages={pages} onPage={setPage} /></div>
+          </div>
+      </div>}
       {previewTk && <TicketPreview t={previewTk} rect={previewRect} onOpen={() => { setDrawerId(previewTk.id); setPreviewId(null); }} onAssign={() => cycleAssign(previewTk.id)} onStatus={() => cycleStatus(previewTk.id)} />}
       {drawerTk && <TicketDrawer t={drawerTk} onClose={() => setDrawerId(null)} />}
 
@@ -183,6 +209,7 @@ function TicketTab({ label, active, tag }) {
 function TicketDetail({ ticket }) {
   const t = ticket;
   const [tab, setTab] = useStateTk('Details');
+  const [localStatus, setLocalStatus] = useStateTk(t.status);
   const tabs = ['Details', `Assets (${t.assets})`, 'Timeline', 'Notes', 'Files', 'Customer Messages', 'Related Jobs'];
   const tabTag = { [`Assets (${t.assets})`]: <PreviewPill />, 'Customer Messages': <UpcomingPill />, 'Related Jobs': <UpcomingPill /> };
   return (
@@ -200,9 +227,8 @@ function TicketDetail({ ticket }) {
         {/* read-only status area — changes only via action buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'hsl(var(--muted) / 0.45)', borderRadius: 8, marginBottom: 4 }}>
           <span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Status</span>
-          <StatusBadge status={t.status} />
+          <Select label="Status" value={localStatus} options={['New', 'Awaiting Review', 'In Progress', 'Waiting on Customer', 'Waiting on Parts', 'Waiting on Technician', 'Job Created', 'Resolved', 'Closed', 'Cancelled', 'Duplicate']} onChange={setLocalStatus} />
           <PriorityBadge priority={t.priority} />
-          <span style={{ marginLeft: 'auto' }}><ReadOnlyTag /></span>
         </div>
         <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 5 }}>
           <KV k="Client"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="CLI-000023" /><span style={{ color: 'hsl(var(--primary))' }}>{t.client}</span></span></KV>

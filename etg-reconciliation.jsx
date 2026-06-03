@@ -62,8 +62,9 @@ function ReconciliationScreen() {
             <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>Layered correction — never edits the original</span>
           </span>
         </>} />
-      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
+      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 14 }}>
         {RECON_KPIS.map((k, i) => <RcKpiCard key={i} {...k} />)}
+        <RcKpiCard title="Unallocated Costs" value="13" sub="$18,240.10 — View all" icon="circle-slash" color="slate" />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid hsl(var(--border))', marginBottom: 14, flexWrap: 'wrap' }}>
@@ -86,11 +87,12 @@ function ReconciliationScreen() {
               <th style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}>Bank Transaction</th>
               <th style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}>Supplier · Invoice</th>
               <th style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}><span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>Match Confidence<ReadOnlyTag /></span></th>
+              <th style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}>Days Difference</th>
               <th style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}>Project / Cost Centre</th>
               <th style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '10px 12px' }}>Actions</th>
             </tr></thead>
             <tbody>
-              {rows.length === 0 && <tr><td colSpan={8} style={{ padding: '26px 12px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No items in this tab.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={9} style={{ padding: '26px 12px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No items in this tab.</td></tr>}
               {rows.map((r) => {
                 const isSel = selected === r.id;
                 return <tr key={r.id} onClick={() => setSelected(r.id)} style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent' }}>
@@ -100,6 +102,7 @@ function ReconciliationScreen() {
                   <td><div style={{ fontWeight: 600 }}>{r.bankAmt}</div><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{r.bankDate} · <Icon name="lock" size={9} /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.bankRef}</span></div></td>
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><SupplierTile name={r.supplier} size={26} /><div><div style={{ fontWeight: 500 }}>{r.supplier}</div><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', fontFamily: 'var(--font-mono)' }}>{r.si} · {r.invAmt}</div></div></div></td>
                   <td><ConfBar conf={r.conf} label={r.confLabel} /></td>
+                  <td style={{ fontSize: 12.5, color: r.days === '0 days' ? 'hsl(var(--muted-foreground))' : 'inherit' }}>{r.days}</td>
                   <td><div style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', color: r.project === '—' ? 'hsl(var(--muted-foreground))' : 'inherit' }}>{r.project}{r.cc !== '—' && <span style={{ color: 'hsl(var(--muted-foreground))' }}> · {r.cc}</span>}</div><div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{r.site}</div></td>
                   <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))' }}>Review</span><Icon name="more-horizontal" size={16} color="hsl(var(--muted-foreground))" /></div></td>
                 </tr>;
@@ -159,16 +162,19 @@ function ImpactRow({ icon, label, value, color }) {
   return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', fontSize: 13 }}>
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name={icon} size={15} color={color} />{label}</span><span style={{ fontWeight: 700, color }}>{value}</span></div>;
 }
-function SoT({ heading, icon, rows, accent, tag }) {
+function SoT({ heading, icon, rows, accent, tag, footer }) {
+  const [open, setOpen] = React.useState(false);
   return <div style={{ border: '1px solid hsl(var(--border))', borderRadius: 9, padding: 12, flex: 1, minWidth: 0 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}><Icon name={icon} size={15} color={accent} /><span style={{ fontSize: 12.5, fontWeight: 600 }}>{heading}</span>{tag && <span style={{ marginLeft: 'auto' }}>{tag}</span>}</div>
     {rows.map(([k, v, hl], i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '3px 0', fontSize: 11.5 }}>
       <span style={{ color: 'hsl(var(--muted-foreground))' }}>{k}</span><span style={{ fontWeight: hl ? 700 : 500, textAlign: 'right' }}>{v}</span></div>)}
+    {footer && <button onClick={() => setOpen((o) => !o)} style={{ width: '100%', marginTop: 8, height: 28, border: '1px solid hsl(var(--input))', borderRadius: 7, background: open ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: open ? 'hsl(var(--primary))' : 'hsl(var(--foreground))', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Icon name="external-link" size={12} />{footer}</button>}
+    {footer && open && <div style={{ marginTop: 6, fontSize: 10.5, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 6, padding: '6px 8px' }}>Opened in ledger view — read-only entry.</div>}
   </div>;
 }
 function CheckItem({ label, state, upcoming }) {
-  const map = { done: ['check-circle-2', 'hsl(var(--success))'], pending: ['clock', 'hsl(var(--warning))'] };
-  const [ic, c] = map[state];
+  const map = { done: ['check-circle-2', 'hsl(var(--success))'], pending: ['clock', 'hsl(var(--warning))'], 'not-started': ['circle', 'hsl(var(--muted-foreground))'] };
+  const [ic, c] = map[state] || map['not-started'];
   return <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', fontSize: 11.5, justifyContent: 'space-between' }}>
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name={ic} size={13} color={c} style={{ flexShrink: 0 }} /><span style={{ color: upcoming ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{label}</span></span>
     {upcoming && <UpcomingPill compact />}</div>;
@@ -180,9 +186,17 @@ function ReconDetail({ row: r, onStatus }) {
   const matched = r.bankAmt === r.invAmt;
   const jobReady = !r.noPo && r.project !== '—';
   const doneCount = RECON_CHECKLIST.filter(([, s]) => s === 'done').length;
+  const [dtab, setDtab] = React.useState('Overview');
+  React.useEffect(() => { setDtab('Overview'); }, [r.id]);
+  const TABS = ['Overview', 'Matching', 'Allocation', 'Analysis', 'Notes', 'History'];
+  const showMatch = dtab === 'Overview' || dtab === 'Matching';
   return (
     <div style={{ position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Panel pad={15}>
+      <div style={{ display: 'flex', gap: 11, borderBottom: '1px solid hsl(var(--border))', overflowX: 'auto' }}>
+        {TABS.map((tb) => { const on = dtab === tb;
+          return <button key={tb} onClick={() => setDtab(tb)} style={{ border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 12, fontWeight: on ? 600 : 500, whiteSpace: 'nowrap', cursor: 'pointer', color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', borderBottom: on ? '2px solid hsl(var(--primary))' : '2px solid transparent', padding: '0 0 9px', marginBottom: -1 }}>{tb}</button>; })}
+      </div>
+      {showMatch && <Panel pad={15}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
           <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Match Review</h3><RcPill status={r.status} />
         </div>
@@ -193,8 +207,8 @@ function ReconDetail({ row: r, onStatus }) {
           <Icon name="landmark" size={14} color="hsl(var(--info))" /><span style={{ fontSize: 12.5, fontWeight: 700 }}>Bank Match</span><ReadOnlyTag compact />
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <SoT heading="Bank Transaction" icon="landmark" accent="hsl(var(--info))" rows={[['Date', r.bankDate], ['Amount', r.bankAmt, true], ['Reference', <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={10} color="hsl(var(--muted-foreground))" /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.bankRef}</span></span>], ['Account', r.bankAcct]]} />
-          <SoT heading="Supplier Invoice" icon="file-text" accent="hsl(var(--success))" tag={<ReadOnlyTag compact />} rows={[['Invoice', <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={10} color="hsl(var(--muted-foreground))" /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.si}</span></span>], ['Subtotal', r.invSub], ['GST', r.invGst], ['Total', r.invAmt, true]]} />
+          <SoT heading="Bank Transaction" icon="landmark" accent="hsl(var(--info))" footer="View Bank Entry" rows={[['Date', r.bankDate], ['Amount', r.bankAmt, true], ['Reference', <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={10} color="hsl(var(--muted-foreground))" /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.bankRef}</span></span>], ['Account', r.bankAcct]]} />
+          <SoT heading="Supplier Invoice" icon="file-text" accent="hsl(var(--success))" tag={<ReadOnlyTag compact />} footer="View Invoice" rows={[['Invoice', <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={10} color="hsl(var(--muted-foreground))" /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.si}</span></span>], ['Subtotal', r.invSub], ['GST', r.invGst], ['Total', r.invAmt, true]]} />
         </div>
         {/* OCR extracted fields */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '9px 0 6px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
@@ -265,9 +279,27 @@ function ReconDetail({ row: r, onStatus }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}><Icon name="lock" size={13} />Lock into financials<UpcomingPill compact /></span>
           <span title="Pushes the verified cost into project financials &amp; invoice readiness" style={{ fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))', borderRadius: 7, padding: '3px 10px', cursor: 'not-allowed', opacity: 0.6 }}>Lock</span>
         </div>
-      </Panel>
 
-      <Panel pad={15}>
+        {/* ===== VERIFICATION CHECKLIST (15 items) ===== */}
+        {dtab === 'Overview' && <div style={{ borderTop: '1px solid hsl(var(--border))', marginTop: 12, paddingTop: 11 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700 }}>Verification Checklist</span><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>All must be completed before approval</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2px 12px' }}>
+            {RECON_CHECKLIST.map(([label, state], i) => <CheckItem key={i} label={label} state={state} />)}
+          </div>
+          <div style={{ display: 'flex', gap: 16, marginTop: 10, paddingTop: 9, borderTop: '1px solid hsl(var(--border))', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="check-circle-2" size={13} color="hsl(var(--success))" />Completed</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="clock" size={13} color="hsl(var(--warning))" />Pending</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="circle" size={13} color="hsl(var(--muted-foreground))" />Not Started</span>
+          </div>
+        </div>}
+      </Panel>}
+
+      {dtab === 'Notes' && <ReconQuickActions />}
+      {/* allocation + analysis + activity panels (existing) follow */}
+
+      {dtab === 'Allocation' && <Panel pad={15}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 9 }}>Allocation{r.status === 'Manager Review' && <span style={{ marginLeft: 7, ...statusStyle('medium'), padding: '1px 8px', borderRadius: 999, fontSize: 10.5, fontWeight: 600 }}>Manager Review Required</span>}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           <div><div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>Project</div>
@@ -283,9 +315,9 @@ function ReconDetail({ row: r, onStatus }) {
           <ImpactRow icon="percent" label="Margin Impact" value="—" color="hsl(var(--muted-foreground))" />
           <ImpactRow icon="wallet" label="Remaining Budget" value="—" color="hsl(var(--muted-foreground))" />
         </div>
-      </Panel>
+      </Panel>}
 
-      <Panel title="Quoted vs Actual" action={<PreviewPill />}>
+      {dtab === 'Analysis' && <Panel title="Quoted vs Actual" action={<PreviewPill />}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
           <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
             {['Line', 'Quoted', 'Actual', 'Variance'].map((h, i) => <th key={i} style={{ textAlign: i ? 'right' : 'left', fontWeight: 500, color: 'hsl(var(--muted-foreground))', padding: '5px 4px' }}>{h}</th>)}
@@ -301,16 +333,36 @@ function ReconDetail({ row: r, onStatus }) {
         <div style={{ marginTop: 8, border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 8, padding: '8px 11px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>Total variance vs quote</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}><Icon name="loader" size={12} />Calculating…</span></div>
-      </Panel>
+      </Panel>}
 
-      <Panel title="Activity / Audit" action={<PreviewPill />}>
+      {dtab === 'History' && <Panel title="Activity / Audit" action={<PreviewPill />}>
         {[['Cost imported from bank feed', 'Accounts · 8:10 AM'], ['OCR extracted invoice total', 'System · 8:11 AM'], ['Allocated to PRJ-000142 / CC-000045', 'J. Manager · 9:02 AM']].map(([a, m], i) =>
           <div key={i} style={{ display: 'flex', gap: 9, padding: '6px 0', borderBottom: i < 2 ? '1px solid hsl(var(--border))' : 'none' }}>
             <Icon name="dot" size={14} color="hsl(var(--muted-foreground))" style={{ flexShrink: 0, marginTop: 1 }} />
             <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{a}</div><div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{m}</div></div></div>)}
-      </Panel>
+      </Panel>}
     </div>
   );
+}
+
+function ReconQuickActions() {
+  const [composer, setComposer] = React.useState(null);
+  const acts = [['message-square-warning', 'Request Changes', 'changes'], ['sticky-note', 'Add Note', 'note'], ['upload', 'Upload Document', 'upload']];
+  return <Panel title="Quick Actions">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+      <Button variant="primary" icon="check" style={{ justifyContent: 'center', background: 'hsl(var(--success))' }}>Verify &amp; Approve</Button>
+      <Button variant="outline" icon="flag" style={{ justifyContent: 'center' }}>Mark Exception</Button>
+      {acts.map(([ic, l, key]) => <div key={key}>
+        <div onClick={() => setComposer(composer === key ? null : key)} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '8px 11px', fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--foreground))', cursor: 'pointer' }}>
+          <Icon name={ic} size={14} color="hsl(var(--muted-foreground))" />{l}</div>
+        {composer === key && <div style={{ border: '1px solid hsl(var(--input))', borderRadius: 8, padding: 10, marginTop: 6, background: 'hsl(var(--muted) / 0.3)' }}>
+          {(key === 'note' || key === 'changes') && <div><input autoFocus placeholder={key === 'changes' ? 'What needs changing?' : 'Add a note…'} style={{ width: '100%', height: 30, border: '1px solid hsl(var(--input))', borderRadius: 6, padding: '0 9px', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: 6, marginTop: 7 }}><button onClick={() => setComposer(null)} style={{ height: 26, padding: '0 11px', border: 'none', borderRadius: 6, background: 'hsl(var(--primary))', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Save</button><button onClick={() => setComposer(null)} style={{ height: 26, padding: '0 11px', border: '1px solid hsl(var(--input))', borderRadius: 6, background: 'hsl(var(--card))', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button></div></div>}
+          {key === 'upload' && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="paperclip" size={13} />Selected: supplier-invoice-INV-55421.pdf</div>}
+        </div>}
+      </div>)}
+    </div>
+  </Panel>;
 }
 
 Object.assign(window, { ReconciliationScreen });

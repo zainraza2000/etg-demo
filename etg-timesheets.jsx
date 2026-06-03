@@ -87,6 +87,7 @@ function TsKpiCard({ k, active, onClick }) {
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{k.title}</div>
         <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 4px', letterSpacing: '-0.02em', color: 'hsl(var(--muted-foreground))' }}>{k.value}</div>
+        {k.caption && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>{k.caption}</div>}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 500, color: 'hsl(var(--primary))' }}><Icon name="filter" size={11} />Click to filter</div>
       </div>
     </div>
@@ -111,6 +112,8 @@ function InvoicePill({ value }) {
 function sumHrs(entries) { return entries.reduce((a, e) => a + (parseFloat(e.hrs) || 0), 0).toFixed(2); }
 
 const TS_FILTERS = [
+  { key: 'total', title: 'Total Hours', value: '243.25', caption: 'This Week', icon: 'clock', color: 'blue', match: () => true },
+  { key: 'billable', title: 'Billable Hours', value: '198.50', caption: '81.6%', icon: 'dollar-sign', color: 'green', match: (t) => parseFloat(t.billable) > 0 },
   { key: 'pending', title: 'Pending Approval', value: '18.25 hrs', icon: 'user-check', color: 'violet', match: (t) => t.status === 'Pending Approval' },
   { key: 'rejected', title: 'Rejected Hours', value: '6.50 hrs', icon: 'x-circle', color: 'red', match: (t) => t.status === 'Rejected' },
   { key: 'nonbillable', title: 'Non-Billable Hours', value: '44.75 hrs', icon: 'clock', color: 'orange', match: (t) => parseFloat(t.nonBillable) > 0 },
@@ -153,7 +156,7 @@ function TimesheetsScreen() {
         </>} />
 
       {/* clickable metric cards */}
-      <div style={{ marginBottom: 14, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+      <div style={{ marginBottom: 14, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
         {TS_FILTERS.map((k) => <TsKpiCard key={k.key} k={k} active={filter === k.key} onClick={() => setFilter(filter === k.key ? null : k.key)} />)}
       </div>
 
@@ -204,9 +207,9 @@ function TimesheetsScreen() {
                   {isExp && <tr><td colSpan={6} style={{ padding: 0, background: 'hsl(var(--card))' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                       <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                        {['Date', 'Job / Task', 'Site', 'Start / End', 'Break', 'Hours', 'Type', 'Status', 'Invoice'].map((h, i) =>
+                        {['Date', 'Job / Task', 'Location', 'Start / End', 'Breaks', 'Hours', 'Type', 'Status', 'Invoice'].map((h, i) =>
                           <th key={i} style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 11, color: 'hsl(var(--muted-foreground))', padding: i === 0 ? '8px 12px 8px 52px' : '8px 12px' }}>
-                            {['Break', 'Hours', 'Type', 'Status', 'Invoice'].includes(h) ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>{h}<ReadOnlyTag /></span> : h}</th>)}
+                            {['Breaks', 'Hours', 'Type', 'Status', 'Invoice'].includes(h) ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 3 }}>{h}<ReadOnlyTag /></span> : h}</th>)}
                       </tr></thead>
                       <tbody>
                         {(() => {
@@ -294,6 +297,9 @@ function DrawerSection({ title, tag, children }) {
 function ApprovalDrawer({ t, onClose, onStatus }) {
   const st = techState(t); const block = st.exceptions.some(([, s]) => s === 'block');
   const entries = t.entries.filter((e) => e.type);
+  const [dtab, setDtab] = React.useState('Summary');
+  const [composer, setComposer] = React.useState(null);
+  const TABS = ['Summary', `Entries (${entries.length})`, 'Breaks', 'Notes'];
   let gi = 0;
   return (
     <React.Fragment>
@@ -312,10 +318,22 @@ function ApprovalDrawer({ t, onClose, onStatus }) {
             <Button variant="outline" icon="rotate-ccw" onClick={() => onStatus && onStatus(t.id, 'Pending Approval')} style={{ flex: 1, justifyContent: 'center' }}>Request changes</Button>
           </div>
           {block && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11.5, color: 'hsl(var(--destructive))' }}><Icon name="ban" size={13} />Approve disabled — resolve block-class exceptions first.</div>}
+          {/* detail tab strip */}
+          <div style={{ display: 'flex', gap: 16, marginTop: 12, marginBottom: -14 }}>
+            {TABS.map((tab) => { const on = dtab === tab.split(' ')[0] || dtab === tab;
+              const key = tab.startsWith('Entries') ? 'Entries' : tab;
+              const active = dtab === key;
+              return <button key={tab} onClick={() => setDtab(key)} style={{ border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 12.5, fontWeight: active ? 600 : 500, cursor: 'pointer',
+                color: active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', borderBottom: active ? '2px solid hsl(var(--primary))' : '2px solid transparent', padding: '0 0 10px' }}>{tab}</button>; })}
+          </div>
         </div>
 
         <div style={{ padding: '16px 18px 40px' }}>
-          {/* exception summary */}
+          {dtab === 'Summary' && <TsSummaryTab t={t} st={st} composer={composer} setComposer={setComposer} />}
+          {dtab === 'Breaks' && <div>{entries.map((e, i) => { const bs = breakStateFor(e, gi++); return <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 11px', marginBottom: 7, fontSize: 12.5 }}>
+            <span><span style={{ fontWeight: 600 }}>{e.day}</span> <span style={{ color: 'hsl(var(--muted-foreground))' }}>· {e.job}</span></span><BreakBadge state={bs} /></div>; })}</div>}
+          {dtab === 'Notes' && <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', padding: '16px 0', display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="sticky-note" size={15} />No notes yet<ReadOnlyTag /></div>}
+          {dtab === 'Entries' && <React.Fragment>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {(st.exceptions.length ? st.exceptions : [['No exceptions', 'ok']]).map(([x, sev], i) => {
               const v = sev === 'block' ? 'var(--status-overdue)' : sev === 'warn' ? 'var(--status-warning)' : 'var(--status-complete)';
@@ -401,8 +419,55 @@ function ApprovalDrawer({ t, onClose, onStatus }) {
             </div>
             <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 6 }}>The engine does validation — not the phone.</div>
           </DrawerSection>
+          </React.Fragment>}
         </div>
       </div>
+    </React.Fragment>
+  );
+}
+
+function TsSummaryTab({ t, st, composer, setComposer }) {
+  const rows = [['Total Hours', `${t.total} hrs`], ['Billable Hours', `${t.billable} hrs (${t.billablePct}%)`], ['Non-Billable Hours', `${t.nonBillable} hrs (${t.nonBillablePct}%)`], ['Overtime Hours', `${t.overtime || '0.00'} hrs`], ['Standard Hours', `${t.standard || t.total} hrs`], ['Breaks', `${t.breaks || '1.00'} hr`]];
+  const QA = [['plus-circle', 'Add Time Entry', 'time'], ['coffee', 'Add Break', 'break'], ['pencil', 'Add Note', 'note'], ['upload', 'Upload Receipt / File', 'upload'], ['copy', 'Copy Last Week', 'copy'], ['user', 'View Technician Profile', 'profile']];
+  const HEALTH = [['All entries have start and end times', true], ['Breaks are within allowed limits', true], ['1 entry exceeds 10 hours', false], ['No overlapping time entries', true], ['1 non-billable entry – review notes', false]];
+  return (
+    <React.Fragment>
+      {/* summary stats */}
+      <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 14 }}>
+        {rows.map(([k, v], i) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13, borderBottom: i < rows.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
+          <span style={{ color: 'hsl(var(--muted-foreground))' }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></div>)}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTop: '1px solid hsl(var(--border))' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5 }}><Avatar name="John Manager" size={22} /><span><span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11.5 }}>Approver</span><div style={{ fontWeight: 600 }}>John Manager</div></span></span>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <DrawerSection title="Quick Actions">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {QA.map(([ic, l, key]) => <div key={key}>
+            <div onClick={() => setComposer(composer === key ? null : key)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 11px', fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: 'pointer' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name={ic} size={14} />{l}</span><Icon name="arrow-right" size={14} /></div>
+            {composer === key && <div style={{ border: '1px solid hsl(var(--input))', borderRadius: 8, padding: 10, marginTop: 6, background: 'hsl(var(--muted) / 0.3)' }}>
+              {(key === 'time' || key === 'break' || key === 'note') && <div>
+                <input autoFocus placeholder={key === 'note' ? 'Type a note…' : key === 'break' ? 'Break duration e.g. 0:30' : 'Job / hours…'} style={{ width: '100%', height: 32, border: '1px solid hsl(var(--input))', borderRadius: 6, padding: '0 9px', fontSize: 12.5, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
+                  <button onClick={() => setComposer(null)} style={{ height: 28, padding: '0 12px', border: 'none', borderRadius: 6, background: 'hsl(var(--primary))', color: '#fff', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Save</button>
+                  <button onClick={() => setComposer(null)} style={{ height: 28, padding: '0 12px', border: '1px solid hsl(var(--input))', borderRadius: 6, background: 'hsl(var(--card))', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+                </div></div>}
+              {key === 'upload' && <div style={{ border: '1.5px dashed hsl(var(--border))', borderRadius: 7, padding: '14px', textAlign: 'center', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}><Icon name="upload-cloud" size={18} /><div style={{ marginTop: 4 }}>Drop a file to attach</div></div>}
+              {key === 'copy' && <div style={{ fontSize: 12, color: 'hsl(var(--success))', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="check-circle-2" size={14} />Last week's entries copied — review</div>}
+              {key === 'profile' && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{t.tech} · {t.usr} · Billable 84% · On-time 100%</div>}
+            </div>}
+          </div>)}
+        </div>
+      </DrawerSection>
+
+      {/* Timesheet Health */}
+      <DrawerSection title="Timesheet Health" tag={<ReadOnlyTag />}>
+        {HEALTH.map(([l, ok], i) => <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', fontSize: 12.5 }}>
+          <Icon name={ok ? 'check-circle-2' : 'alert-triangle'} size={15} color={ok ? 'hsl(var(--success))' : 'hsl(var(--warning))'} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span style={{ color: ok ? 'hsl(var(--foreground))' : 'hsl(var(--warning))' }}>{l}</span></div>)}
+      </DrawerSection>
     </React.Fragment>
   );
 }

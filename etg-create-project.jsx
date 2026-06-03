@@ -97,9 +97,9 @@ function CpAiSummary() {
 
 function CreateProjectScreen({ onClose }) {
   const tabs = [
-    { name: 'Project Info' }, { name: 'Financials' }, { name: 'Scheduling' },
-    { name: 'Assets', up: true }, { name: 'Parts & Suppliers', up: true },
-    { name: 'Compliance', up: true }, { name: 'Risk & Automation', up: true }, { name: 'Notes & Files' },
+    { name: 'Project Info', icon: 'layout-grid' }, { name: 'Financials', icon: 'bar-chart-3' }, { name: 'Scheduling', icon: 'calendar-days' },
+    { name: 'Assets', up: true, icon: 'box' }, { name: 'Parts & Suppliers', up: true, icon: 'settings' },
+    { name: 'Compliance', up: true, icon: 'shield-check' }, { name: 'Risk & Automation', up: true, icon: 'alert-triangle' }, { name: 'Notes & Files', icon: 'file-text' },
   ];
   const [tab, setTab] = useStateCP('Project Info');
   return (
@@ -116,6 +116,7 @@ function CreateProjectScreen({ onClose }) {
         <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button variant="primary" icon="check" onClick={onClose}>Create Project</Button>
+          <button onClick={onClose} title="Close" style={{ border: 'none', background: 'transparent', color: 'hsl(var(--muted-foreground))', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', padding: 6 }}><Icon name="x" size={18} /></button>
         </div>
       </div>
 
@@ -132,7 +133,7 @@ function CreateProjectScreen({ onClose }) {
         {tabs.map((t) => {
           const on = t.name === tab;
           return <button key={t.name} onClick={() => setTab(t.name)} style={{ border: 'none', background: 'transparent', fontFamily: 'inherit', fontSize: 13.5, fontWeight: on ? 600 : 500, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6,
-            color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', borderBottom: on ? '2px solid hsl(var(--primary))' : '2px solid transparent', padding: '8px 12px', marginBottom: -1, cursor: 'pointer' }}>{t.name}{t.up && <UpcomingPill compact />}</button>;
+            color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))', borderBottom: on ? '2px solid hsl(var(--primary))' : '2px solid transparent', padding: '8px 12px', marginBottom: -1, cursor: 'pointer' }}><Icon name={t.icon} size={14} />{t.name}{t.up && <UpcomingPill compact />}</button>;
         })}
       </div>
 
@@ -176,7 +177,7 @@ function CreateProjectScreen({ onClose }) {
             <CpField label="Materials Budget (AUD)" tag={<UpcomingPill />}><CpMuted value="0.00" /></CpField>
             <CpField label="Approved Value (AUD)" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
             <CpField label="Variation Value (AUD)" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
-            <CpField label="Retention / Holdback" tag={<UpcomingPill />}><CpMuted value="—" /></CpField>
+            <CpField label="Retention / Holdback" tag={<UpcomingPill />}><div style={{ display: 'grid', gridTemplateColumns: '1fr 0.6fr', gap: 8 }}><CpMoney value="0.00" /><div style={{ position: 'relative' }}><input defaultValue="0" style={{ ...cpInput, paddingRight: 24 }} /><span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--muted-foreground))', fontSize: 12 }}>%</span></div></div></CpField>
             <CpField label="Invoiced Value (AUD)" tag={<ReadOnlyTag />}><CpReadOnly value="—" /></CpField>
             <CpField label="Current Margin (0–1)" tag={<ReadOnlyTag />}><CpReadOnly value="—" /></CpField>
           </div>

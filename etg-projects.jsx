@@ -61,6 +61,7 @@ function ProjectsScreen({ onNewProject }) {
   const [fPm, setFPm] = useStateProj('All');
   const [marginRiskOnly, setMarginRiskOnly] = useStateProj(false);
   const [page, setPage] = useStateProj(1);
+  const [view, setView] = useStateProj('list');
   const PER = 6;
 
   const clients = ['All', ...Array.from(new Set(PROJECTS.map((p) => p.client)))];
@@ -99,8 +100,12 @@ function ProjectsScreen({ onNewProject }) {
         <Select label="Client" value={fClient} options={clients} onChange={(v) => { setFClient(v); reset(); }} />
         <Select label="Project Manager" value={fPm} options={pms} onChange={(v) => { setFPm(v); reset(); }} />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Select label="More Filters" /><UpcomingPill /></span>
+        <div style={{ marginLeft: 'auto' }}>
+          <ViewToggle value={view} onChange={setView} options={[{ id: 'list', label: 'List View', icon: 'list' }, { id: 'board', label: 'Board View', icon: 'layout-grid' }]} />
+        </div>
       </div>
 
+      {view === 'board' ? <ProjectBoard projects={filtered} onSelect={setSelected} /> :
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 16, alignItems: 'start' }}>
         {/* Table */}
         <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
@@ -165,7 +170,41 @@ function ProjectsScreen({ onNewProject }) {
 
         {/* Detail panel */}
         <ProjectDetail project={project} />
-      </div>
+      </div>}
+    </div>
+  );
+}
+
+function ProjectBoard({ projects, onSelect }) {
+  const cols = ['Quoted', 'In Progress', 'On Hold', 'Completed'];
+  const marginColor = (m) => m < 0 ? 'hsl(var(--destructive))' : m < 10 ? 'hsl(var(--warning))' : 'hsl(var(--success))';
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, alignItems: 'start' }}>
+      {cols.map((status) => {
+        const cards = projects.filter((p) => p.status === status);
+        return (
+          <div key={status}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <StatusBadge status={status} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{cards.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {cards.length === 0 && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '14px 0', textAlign: 'center' }}>No projects</div>}
+              {cards.map((p) => (
+                <div key={p.id} onClick={() => onSelect(p.id)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 12, boxShadow: p.margin < 10 ? 'inset 3px 0 0 hsl(var(--destructive)), var(--shadow-sm)' : 'var(--shadow-sm)', cursor: 'pointer' }}>
+                  <IdChip id={p.id} />
+                  <div style={{ fontSize: 13, fontWeight: 600, margin: '6px 0 2px' }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{p.client}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: marginColor(p.margin) }}>{p.margin}%</span>
+                    <HealthChip score={p.health} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
