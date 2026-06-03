@@ -261,23 +261,44 @@ const TIMESHEETS = [
       { day: 'Sat, 17 May', job: 'Call Back – Camera Adjust', loc: 'ABC Corporate – Level 1', time: '8:00 AM – 10:00 AM', brk: '—', hrs: '2.00', type: 'Billable', status: 'Approved' },
       { day: 'Sun, 18 May', job: '—', loc: '', time: '', brk: '', hrs: '', type: '', status: '' },
     ] },
-  { tech: 'Jake Murray', id: 'USR-000013', total: '35.25', billable: '28.75', billablePct: 82, nonBillable: '6.50', nonBillablePct: 18, status: 'Pending Approval',
-    week: '12 – 18 May 2026', overtime: '0.00', standard: '35.25', breaks: '1.00',
+  { tech: 'Jake Murray', id: 'USR-000013', total: '38.75', billable: '32.25', billablePct: 83, nonBillable: '6.50', nonBillablePct: 17, status: 'Pending Approval',
+    week: '12 – 18 May 2026', overtime: '0.00', standard: '38.75', breaks: '1.00', readiness: 'Missing break',
     entries: [
       { day: 'Mon, 12 May', job: 'FJ-001052 – CCTV Upgrade', loc: 'ABC Corporate – Level 1', time: '7:30 AM – 11:00 AM', brk: '—', hrs: '3.50', type: 'Billable', status: 'Approved', inv: 'Ready to invoice' },
-      { day: 'Mon, 12 May', job: 'FJ-001056 – Intercom Fault', loc: "St Mary's College – Main", time: '12:00 PM – 4:00 PM', brk: '—', hrs: '4.00', type: 'Billable', status: 'Pending', inv: 'Not ready' },
+      { day: 'Mon, 12 May', job: 'FJ-001056 – Intercom Fault', loc: "St Mary's College – Main", time: '11:30 AM – 2:00 PM', brk: '—', hrs: '2.50', type: 'Billable', status: 'Pending', inv: 'Not ready' },
+      { day: 'Mon, 12 May', job: 'FJ-001061 – Access Reader Swap', loc: 'Retail Group – Store 47', time: '2:30 PM – 5:00 PM', brk: '—', hrs: '2.50', type: 'Billable', status: 'Pending', inv: 'In review' },
       { day: 'Tue, 13 May', job: 'FJ-001055 – NVR Install', loc: 'Retail Group – Store 47', time: '8:00 AM – 4:30 PM', brk: '0:30', hrs: '8.00', type: 'Billable', status: 'Approved', inv: 'Invoiced ✓' },
       { day: 'Wed, 14 May', job: 'Travel To Site', loc: '—', time: '6:30 AM – 7:30 AM', brk: '—', hrs: '1.00', type: 'Non-Billable', status: 'Approved', inv: '—' },
       { day: 'Wed, 14 May', job: 'FJ-001056 – Intercom Fault', loc: "St Mary's College – Main", time: '8:00 AM – 3:45 PM', brk: '0:30', hrs: '7.25', type: 'Billable', status: 'Pending', inv: 'Blocked' },
       { day: 'Fri, 16 May', job: 'Admin / Reporting', loc: 'Office', time: '9:00 AM – 1:00 PM', brk: '—', hrs: '4.00', type: 'Non-Billable', status: 'Pending', inv: '—' },
     ] },
-  { tech: 'Liam Smith', id: 'USR-000014', total: '0.00', billable: '0.00', billablePct: 0, nonBillable: '0.00', nonBillablePct: 0, status: 'No Timesheet', entries: [] },
-  { tech: 'Michael Davis', id: 'USR-000015', total: '12.00', billable: '9.00', billablePct: 75, nonBillable: '3.00', nonBillablePct: 25, status: 'Rejected',
+  { tech: 'Liam Smith', id: 'USR-000014', total: '0.00', billable: '0.00', billablePct: 0, nonBillable: '0.00', nonBillablePct: 0, status: 'No Timesheet', readiness: 'No timesheet submitted', entries: [] },
+  { tech: 'Michael Davis', id: 'USR-000015', total: '12.00', billable: '9.00', billablePct: 75, nonBillable: '3.00', nonBillablePct: 25, status: 'Rejected', readiness: 'Rejected — needs correction',
     week: '12 – 18 May 2026', overtime: '0.00', standard: '12.00', breaks: '0.30',
     entries: [
       { day: 'Mon, 12 May', job: 'FJ-001058 – Automation', loc: 'Fusion Mfg – Factory 1', time: '8:00 AM – 4:30 PM', brk: '0:30', hrs: '8.00', type: 'Billable', status: 'Rejected' },
       { day: 'Tue, 13 May', job: 'Admin / Reporting', loc: 'Office', time: '9:00 AM – 12:00 PM', brk: '—', hrs: '3.00', type: 'Non-Billable', status: 'Rejected' },
       { day: 'Wed, 14 May', job: 'FJ-001058 – Automation', loc: 'Fusion Mfg – Factory 1', time: '10:00 AM – 11:00 AM', brk: '—', hrs: '1.00', type: 'Billable', status: 'Rejected' },
+    ] },
+  { tech: 'David Brown', id: 'USR-000016', total: '9.50', billable: '9.50', billablePct: 100, nonBillable: '0.00', nonBillablePct: 0, status: 'Pending Approval', readiness: 'Missing job link',
+    week: '12 – 18 May 2026', overtime: '0.00', standard: '9.50', breaks: '0.30',
+    entries: [
+      { day: 'Mon, 12 May', job: 'FJ-001062 – Camera Reposition', loc: 'ABC Corporate – Level 3', time: '8:00 AM – 1:00 PM', brk: '0:30', hrs: '4.50', type: 'Billable', status: 'Approved', inv: 'Ready to invoice' },
+      { day: 'Tue, 13 May', job: 'Unlinked site work', loc: 'ABC Corporate – Level 3', time: '8:30 AM – 1:30 PM', brk: '0:30', hrs: '5.00', type: 'Billable', status: 'Pending', inv: 'Not ready', noLink: true },
+    ] },
+  { tech: 'Anthony White', id: 'USR-000017', total: '46.50', billable: '40.00', billablePct: 86, nonBillable: '6.50', nonBillablePct: 14, status: 'Pending Approval', readiness: 'Overtime review',
+    week: '12 – 18 May 2026', overtime: '6.50', standard: '40.00', breaks: '2.30',
+    entries: [
+      { day: 'Mon, 12 May', job: 'FJ-001064 – After-hours Cutover', loc: 'Fusion Mfg – Factory 1', time: '6:00 AM – 6:30 PM', brk: '0:30', hrs: '12.00', type: 'Billable', status: 'Pending', inv: 'Not ready', ot: true },
+      { day: 'Tue, 13 May', job: 'FJ-001064 – After-hours Cutover', loc: 'Fusion Mfg – Factory 1', time: '6:00 AM – 5:30 PM', brk: '0:30', hrs: '11.00', type: 'Billable', status: 'Pending', inv: 'Not ready', ot: true },
+      { day: 'Wed, 14 May', job: 'FJ-001065 – Commissioning', loc: 'Fusion Mfg – Factory 1', time: '7:00 AM – 3:30 PM', brk: '0:30', hrs: '8.00', type: 'Billable', status: 'Approved', inv: 'Ready to invoice' },
+    ] },
+  { tech: 'Priya Nair', id: 'USR-000018', total: '31.00', billable: '24.50', billablePct: 79, nonBillable: '6.50', nonBillablePct: 21, status: 'Pending Approval', readiness: 'Invoice blocked',
+    week: '12 – 18 May 2026', overtime: '0.00', standard: '31.00', breaks: '1.30',
+    entries: [
+      { day: 'Mon, 12 May', job: 'FJ-001067 – Switch Replacement', loc: 'Retail Group – Store 47', time: '8:00 AM – 4:30 PM', brk: '0:30', hrs: '8.00', type: 'Billable', status: 'Approved', inv: 'Blocked' },
+      { day: 'Tue, 13 May', job: 'FJ-001067 – Switch Replacement', loc: 'Retail Group – Store 47', time: '8:00 AM – 4:00 PM', brk: '0:30', hrs: '7.50', type: 'Billable', status: 'Approved', inv: 'Blocked' },
+      { day: 'Wed, 14 May', job: 'Admin / Reporting', loc: 'Office', time: '9:00 AM – 1:00 PM', brk: '—', hrs: '4.00', type: 'Non-Billable', status: 'Approved', inv: '—' },
     ] },
 ];
 
@@ -308,9 +329,26 @@ TIMESHEETS.forEach((t, i) => { t.usr = 'USR-' + String(12 + i).padStart(6, '0');
     j.skills = [SKILLS[i % SKILLS.length], SKILLS[(i + 2) % SKILLS.length]];
     j.licences = [LICENCES[i % LICENCES.length]];
     j.siteAccess = ['Reception sign-in · escort required', 'Key safe — code on file', 'After-hours access via security', 'Loading dock — call site contact'][i % 4];
-    j.readiness = j.state === 'Blocked' ? 'Blocked' : j.state === 'Ready' ? 'Ready' : j.state === 'In Progress' ? 'In Progress' : ['Ready', 'Parts pending', 'Awaiting access'][i % 3];
+    // explicit per-visit readiness (typed blockers vary the spread; no blanks)
+    const RDY = ['Ready', 'Planned', 'In Progress', 'At Risk', 'Needs Review', 'Parts Missing', 'Access Missing', 'Skills Missing', 'Client Not Confirmed', 'Overtime Risk', 'Travel Conflict'];
+    j.readiness = j.state === 'Blocked' ? 'Parts Missing' : j.state === 'Ready' ? 'Ready' : j.state === 'In Progress' ? 'In Progress' : j.state === 'Overdue' ? 'At Risk' : j.state === 'Cancelled' ? 'Needs Review' : j.state === 'Unassigned' ? RDY[5 + (i % 6)] : RDY[i % RDY.length];
+    // per-card check signals (skills, access, parts, client, travel, asset)
+    const block = ['Parts Missing', 'Access Missing', 'Skills Missing', 'Client Not Confirmed', 'Travel Conflict'].indexOf(j.readiness);
+    j.checks = { skills: block !== 2, access: block !== 1, parts: block !== 0, client: block !== 3, travel: block !== 4, asset: i % 4 !== 0 };
+    j.blocker = j.readiness === 'Ready' || j.readiness === 'Planned' || j.readiness === 'In Progress' ? null
+      : { 'Parts Missing': '1× NVR-8CH not allocated', 'Access Missing': 'Site key not collected', 'Skills Missing': 'No CCTV licence on tech', 'Client Not Confirmed': 'Awaiting client confirmation', 'Overtime Risk': 'May exceed standard hours', 'Travel Conflict': 'Overlaps prior visit travel', 'At Risk': 'Ran past scheduled window', 'Needs Review': 'Manual review required' }[j.readiness];
     i++;
   });
+  // per-technician capacity (scheduled / available, billable vs travel, idle gap)
+  const CAP = [
+    { sched: 18.0, avail: 38.0, billable: 15.0, travel: 3.0, gap: '12:00–1:00 PM' },
+    { sched: 16.5, avail: 38.0, billable: 14.0, travel: 2.5, gap: '3:00–4:30 PM' },
+    { sched: 9.0, avail: 38.0, billable: 6.5, travel: 2.5, gap: '11:00 AM–2:00 PM' },
+    { sched: 32.5, avail: 38.0, billable: 30.0, travel: 2.5, gap: 'None' },
+    { sched: 7.5, avail: 24.0, billable: 5.0, travel: 2.5, gap: '1:00–3:00 PM' },
+    { sched: 20.0, avail: 38.0, billable: 17.5, travel: 2.5, gap: '9:30–10:30 AM' },
+  ];
+  TECHS.forEach((t, k) => { t.capacity = CAP[k % CAP.length]; });
 })();
 
 Object.assign(window, {
@@ -359,7 +397,7 @@ const RECON_ROWS = [
   { id: 'r4', im: 'IM-000064', status: 'Manager Review', priority: 'High', bankDate: '13 May 2026', bankAmt: '$1,980.00', bankRef: 'BTX-000207', bankAcct: 'CommBank Business', supplier: 'Dahua Technology', si: 'SI-000091', invDate: '13 May 2026', invAmt: '$1,980.00', invSub: '$1,800.00', invGst: '$180.00', conf: 72, project: 'PRJ-000145', cc: 'CC-000046', site: 'RetailCo Solutions · Store 47', days: '0 days', marginFlag: true },
   { id: 'r5', im: 'IM-000065', status: 'Exception', priority: 'High', exType: 'Amount mismatch', bankDate: '12 May 2026', bankAmt: '$3,215.00', bankRef: 'BTX-000208', bankAcct: 'Westpac Business', supplier: 'Bosch Security Systems', si: 'SI-000092', invDate: '12 May 2026', invAmt: '$3,680.00', invSub: '$3,345.45', invGst: '$334.55', conf: 0, confLabel: 'Low', project: 'PRJ-000142', cc: 'CC-000045', site: "St Mary's College · Maintenance", days: '0 days' },
   { id: 'r6', im: 'IM-000066', status: 'Pending Verification', priority: 'Low', bankDate: '12 May 2026', bankAmt: '$2,150.00', bankRef: 'BTX-000209', bankAcct: 'NAB Business', supplier: 'Aircon Solutions', si: 'SI-000093', invDate: '12 May 2026', invAmt: '$2,150.00', invSub: '$2,150.00', invGst: '$0.00', gstFree: true, conf: 99, project: 'PRJ-000147', cc: 'CC-000058', site: 'DevGroup Holdings · Warehouse', days: '0 days' },
-  { id: 'r7', im: 'IM-000067', status: 'Partially Allocated', priority: 'Low', bankDate: '11 May 2026', bankAmt: '$580.80', bankRef: 'BTX-000210', bankAcct: 'CommBank Business', supplier: 'CableCore Solutions', si: 'SI-000094', invDate: '11 May 2026', invAmt: '$580.80', invSub: '$528.00', invGst: '$52.80', conf: 68, confLabel: 'Weak', project: 'PRJ-000146', cc: '—', site: 'Fusion Mfg · Factory 1', days: '0 days', splitAlloc: true },
+  { id: 'r7', im: 'IM-000067', status: 'Partially Allocated', priority: 'Low', bankDate: '11 May 2026', bankAmt: '$580.80', bankRef: 'BTX-000210', bankAcct: 'CommBank Business', supplier: 'CableCore Solutions', si: 'SI-000094', invDate: '11 May 2026', invAmt: '$580.80', invSub: '$528.00', invGst: '$52.80', conf: 68, confLabel: 'Weak', project: '—', cc: '—', site: 'Not Allocated', days: '0 days', splitAlloc: true, noPo: true },
   { id: 'r8', im: 'IM-000068', status: 'Pending Verification', priority: 'Medium', bankDate: '11 May 2026', bankAmt: '$1,245.00', bankRef: 'BTX-000211', bankAcct: 'Westpac Business', supplier: 'Schneider Electric', si: 'SI-000095', invDate: '11 May 2026', invAmt: '$1,245.00', invSub: '$1,131.82', invGst: '$113.18', conf: 82, confLabel: 'Likely', project: 'PRJ-000142', cc: 'CC-000045', site: 'ABC Corporate · Level 1 Refurb', days: '0 days' },
 ];
 // quoted vs actual line comparison (engine output — preview)

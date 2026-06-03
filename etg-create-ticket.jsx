@@ -110,10 +110,10 @@ function CreateTicketScreen({ onClose }) {
         <CtSection n="1" title="Customer & Site">
           <div style={{ display: 'flex', gap: 22 }}>
             <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-              <CtField label="Customer" req><CtSelect value="ABC Corporate" sub="ABN: 12 345 678 910" /></CtField>
+              <CtField label="Customer" req><div><div style={{ marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(258 60% 50%)', fontWeight: 500, cursor: 'pointer' }}><Icon name="plus" size={12} />New customer<Icon name="sparkles" size={10} /></div><CtSelect value="ABC Corporate" sub="ABN: 12 345 678 910" /></div></CtField>
               <CtField label="Contact Name" req><div><div style={{ marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(var(--primary))', fontWeight: 500, cursor: 'pointer' }}><Icon name="user-search" size={12} />Link existing contact</div><CtText value="Sarah Johnson" /></div></CtField>
               <CtField label="Phone" req><CtText value="0412 345 678" /></CtField>
-              <CtField label="Site" req><CtSelect value="Sydney Office" sub="123 George Street, Sydney NSW 2000" /></CtField>
+              <CtField label="Site" req><div><div style={{ marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(258 60% 50%)', fontWeight: 500, cursor: 'pointer' }}><Icon name="plus" size={12} />New site<Icon name="sparkles" size={10} /></div><CtSelect value="Sydney Office" sub="123 George Street, Sydney NSW 2000" /></div></CtField>
               <CtField label="Email"><CtText value="sarah.johnson@abccorp.com.au" /></CtField>
               <CtField label="Contact Role"><CtSelect value="IT Manager" /></CtField>
             </div>
@@ -162,6 +162,9 @@ function CreateTicketScreen({ onClose }) {
               <CtField label="Preferred Contact Time"><CtSelect value="Anytime" /></CtField>
               <CtField label="Is the site currently operational?"><CtSelect value="No – Not Operational" /></CtField>
               <CtField label="Best time for technician to attend"><CtSelect value="ASAP" /></CtField>
+              <CtField label="Third-party installed / takeover" req={false}><div style={{ ...ctInput, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ width: 34, height: 19, borderRadius: 999, background: 'hsl(var(--muted-foreground) / 0.35)', position: 'relative' }}><span style={{ position: 'absolute', top: 2, left: 2, width: 15, height: 15, borderRadius: '50%', background: '#fff' }} /></span>No</span>
+                <UpcomingPill /></div></CtField>
             </div>
           </CtSection>
           <CtSection n="4" title="Attachments">

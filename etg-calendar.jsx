@@ -12,26 +12,46 @@ const JOB_STATE = {
 };
 const TECH_STATE_COLOR = { 'On Site': 'hsl(var(--success))', 'Travelling': 'hsl(var(--warning))', 'On Break': 'hsl(var(--muted-foreground))' };
 
+// per-visit readiness → tone (always defined; never blank)
+const READY_TONE = {
+  'Ready': 'complete', 'Planned': 'active', 'In Progress': 'active', 'At Risk': 'warning', 'Needs Review': 'warning',
+  'Parts Missing': 'overdue', 'Access Missing': 'overdue', 'Skills Missing': 'overdue', 'Client Not Confirmed': 'overdue', 'Overtime Risk': 'warning', 'Travel Conflict': 'overdue', 'Blocked': 'overdue',
+};
+function ReadyBadge({ value, micro }) {
+  const v = `var(--status-${READY_TONE[value] || 'draft'})`;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: micro ? '0 6px' : '1px 7px', borderRadius: 999, fontSize: micro ? 9 : 10, fontWeight: 600, whiteSpace: 'nowrap',
+    background: `hsl(${v} / 0.13)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.3)` }}><Icon name="lock" size={micro ? 8 : 9} />{value}</span>;
+}
+function CheckRow({ checks }) {
+  const items = [['wrench', 'skills', checks.skills], ['key-round', 'access', checks.access], ['package', 'parts', checks.parts], ['user-check', 'client', checks.client], ['navigation', 'travel', checks.travel], ['box', 'asset', checks.asset]];
+  return <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+    {items.map(([ic, k, ok]) => <span key={k} title={k} style={{ display: 'inline-flex' }}><Icon name={ic} size={11} color={ok ? 'hsl(var(--success))' : 'hsl(var(--destructive))'} /></span>)}
+  </div>;
+}
+
 function JobBlock({ job, selected, onClick }) {
   const s = JOB_STATE[job.state] || JOB_STATE['Planned'];
   const prioColor = { High: 'hsl(var(--destructive))', Medium: 'hsl(var(--warning))', Low: 'hsl(var(--success))' }[job.prio] || 'hsl(var(--muted-foreground))';
   return (
     <div onClick={onClick} style={{ background: s.bg, borderLeft: `3px solid ${s.bar}`, borderRadius: 6, padding: '6px 8px', cursor: 'pointer',
       outline: selected ? `2px solid ${s.bar}` : 'none', boxShadow: selected ? 'var(--shadow-sm)' : 'none' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 4 }}>
+      {/* time + priority dot */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
         <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}><SiteTime time={job.time} zone={siteZoneFor(job.client)} small /></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9.5, fontWeight: 600, color: prioColor, flexShrink: 0 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: prioColor }} />{job.prio}</span>
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: prioColor, flexShrink: 0 }} title={job.prio} />
       </div>
-      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2, lineHeight: 1.2 }}>{job.title}</div>
-      <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{job.client}</div>
-      <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.addr}</div>
-      {job.reason && <div style={{ fontSize: 9.5, color: s.bar, marginTop: 3, lineHeight: 1.3, display: 'flex', gap: 3 }}><Icon name="alert-triangle" size={9} style={{ flexShrink: 0, marginTop: 1 }} />{job.reason}</div>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 5, gap: 4 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-mono)', fontSize: 9.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}><Icon name="lock" size={9} />{job.sd}</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-          <span style={{ ...statusStyle(s.badge), fontSize: 9.5, fontWeight: 600, padding: '1px 6px', borderRadius: 999 }}>{job.state}</span>
-          <ReadOnlyTag compact /></span>
+      {/* title + client/site */}
+      <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.title}</div>
+      <div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.client} · {job.loc}</div>
+      {/* readiness badge + tech live-status */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
+        <ReadyBadge value={job.readiness || 'Planned'} />
+        {job.live && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 600, color: TECH_STATE_COLOR[job.live] || 'hsl(var(--muted-foreground))' }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: TECH_STATE_COLOR[job.live] || 'hsl(var(--muted-foreground))' }} />{job.live}</span>}
       </div>
+      {/* one key blocker line */}
+      {job.blocker && <div style={{ fontSize: 9.5, color: s.bar, marginTop: 3, lineHeight: 1.25, display: 'flex', gap: 3 }}><Icon name="alert-triangle" size={9} style={{ flexShrink: 0, marginTop: 1 }} />{job.blocker}</div>}
+      {/* tiny check-icon row */}
+      {job.checks && <CheckRow checks={job.checks} />}
     </div>
   );
 }
@@ -53,6 +73,7 @@ function CalKpiCard({ title, value, sub, icon, color, readOnly, upcoming }) {
 function CalendarScreen() {
   const [sel, setSel] = useStateCal('0-0');
   const [worker, setWorker] = useStateCal(null); // technician index for drill-down
+  const [kpiFilter, setKpiFilter] = useStateCal(null);
   const CELL = 168;
   if (worker !== null) return <WorkerCalendar techIndex={worker} onBack={() => setWorker(null)} onOpenVisit={() => {}} />;
   // resolve selected job from the "ti-di" / "u-di" key
@@ -63,17 +84,47 @@ function CalendarScreen() {
     const [ti, di] = sel.split('-').map(Number); selJob = (CAL_JOBS[ti] || []).find((j) => j.day === di);
     if (selJob) selJob = { ...selJob, tech: TECHS[ti] && TECHS[ti].name };
   }
+  const CMD_KPIS = [
+    { key: 'today', title: 'Jobs Today', value: '18', sub: '▲3 vs yesterday', icon: 'calendar-days', color: 'blue' },
+    { key: 'inprog', title: 'In Progress', value: '9', sub: '50% of today', icon: 'loader', color: 'blue' },
+    { key: 'unassigned', title: 'Unassigned', value: '3', sub: 'High priority', icon: 'user-x', color: 'violet' },
+    { key: 'blocked', title: 'Blocked', value: '2', sub: 'Action required', icon: 'ban', color: 'red' },
+    { key: 'ot', title: 'Overtime Risk', value: '4', sub: 'This week', icon: 'alarm-clock', color: 'orange' },
+    { key: 'parts', title: 'Parts Missing', value: '5', sub: 'Impacting jobs', icon: 'package-x', color: 'orange' },
+    { key: 'access', title: 'Access Issues', value: '2', sub: 'Site access', icon: 'key-round', color: 'orange' },
+    { key: 'working', title: 'Technicians Working', value: '22', sub: '75% of team', icon: 'users', color: 'green' },
+  ];
   return (
     <div>
-      <PageHeader title="Calendar" description="Schedule, visits and technician assignments"
-        actions={<>
+      {/* command-centre header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>Scheduling Command Centre</h1>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--success))' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'hsl(var(--success))' }} />Live</span>
+            <span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>Data as of 9:23 AM</span>
+          </div>
+          <p style={{ fontSize: 14, color: 'hsl(var(--muted-foreground))', margin: '4px 0 0' }}>Real-time visibility, automation and readiness for every visit.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
           <Button variant="outline">Today</Button>
           <Button variant="outline" icon="calendar">12 – 18 May 2026</Button>
-          <Button variant="outline" icon="filter">Filters</Button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="sparkles">Auto-Schedule</Button><UpcomingPill /></span>
           <Button variant="primary" icon="plus">New Visit</Button>
-        </>} />
-      <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
-        {CAL_KPIS.map((k, i) => <CalKpiCard key={i} {...k} />)}
+        </div>
+      </div>
+      {/* 8 clickable KPI filters */}
+      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 11 }}>
+        {CMD_KPIS.map((k) => { const on = kpiFilter === k.key;
+          return <div key={k.key} onClick={() => setKpiFilter(on ? null : k.key)} style={{ background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${on ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 11, padding: 12, boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ width: 32, height: 32, borderRadius: 8, background: KPI_COLORS[k.color], display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name={k.icon} size={16} color="#fff" /></span>
+              <Icon name="lock" size={11} color="hsl(var(--muted-foreground))" />
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, marginTop: 8, lineHeight: 1 }}>{k.value}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>{k.title}</div>
+            <div style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{k.sub}</div>
+          </div>; })}
       </div>
 
       {/* view tabs + search */}
@@ -89,13 +140,34 @@ function CalendarScreen() {
         </div>
       </div>
 
-      {/* drag-to-schedule gate — the one live engine on this screen */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: '10px 14px', marginBottom: 14, boxShadow: 'var(--shadow-sm)', flexWrap: 'wrap' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 600 }}><Icon name="move" size={15} color="hsl(var(--primary))" />Drag a visit onto a technician / day — the scheduling gate checks it live:</span>
+      {/* Scheduling Gate Live banner */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'hsl(var(--success-subtle) / 0.5)', border: '1px solid hsl(var(--success) / 0.3)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, flexWrap: 'wrap' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name="shield-check" size={18} color="hsl(var(--success))" /><span><span style={{ fontSize: 13, fontWeight: 700 }}>Scheduling Gate Live</span><span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginLeft: 8 }}>All visits validated against readiness rules.</span></span></span>
+        <span style={{ marginLeft: 14, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>Legend:</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'hsl(var(--destructive))', background: 'hsl(var(--destructive-subtle))', border: '1px solid hsl(var(--destructive) / 0.3)', padding: '3px 9px', borderRadius: 999 }}><Icon name="ban" size={13} />Block</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'hsl(var(--warning))', background: 'hsl(var(--warning-subtle))', border: '1px solid hsl(var(--warning) / 0.3)', padding: '3px 9px', borderRadius: 999 }}><Icon name="alert-triangle" size={13} />Warn &amp; proceed</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))', background: 'hsl(var(--primary-subtle))', border: '1px solid hsl(var(--primary) / 0.3)', padding: '3px 9px', borderRadius: 999 }}><Icon name="shield-check" size={13} />Override with reason</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'hsl(var(--success))', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'hsl(var(--success))' }} />Live</span>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))', cursor: 'pointer' }}><Icon name="list-checks" size={14} />Gate Rules</span>
+      </div>
+
+      {/* Unscheduled Queue tray */}
+      <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: '12px 14px', marginBottom: 14, boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <Icon name="inbox" size={16} color="hsl(var(--primary))" /><span style={{ fontSize: 13, fontWeight: 700 }}>Unscheduled Queue</span><span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>6 jobs · drag onto the grid to schedule</span>
+          <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))', cursor: 'pointer' }}>View all queue ›</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
+          {[['High', 'CCTV Upgrade', 'ABC Corporate', 'Blocked: Parts missing', 'block'], ['High', 'Network Upgrade', 'XYZ Building', 'Blocked: Access issue', 'block'], ['Medium', 'Switchboard Install', 'BuildCo Group', 'Warn: Skills gap', 'warn'], ['Medium', 'Lighting Audit', 'Retail Group', 'Warn: Overtime risk', 'warn'], ['Low', 'Site Inspection', "St Mary's College", 'Needs review', 'review'], ['Low', 'Quote Follow Up', 'Fusion Manufacturing', 'Unassigned', 'review']].map(([prio, title, client, why, sev], i) => {
+            const pc = prio === 'High' ? 'hsl(var(--destructive))' : prio === 'Medium' ? 'hsl(var(--warning))' : 'hsl(var(--success))';
+            const wc = sev === 'block' ? 'hsl(var(--destructive))' : sev === 'warn' ? 'hsl(var(--warning))' : 'hsl(var(--muted-foreground))';
+            return <div key={i} style={{ minWidth: 188, flexShrink: 0, border: '1px solid hsl(var(--border))', borderLeft: `3px solid ${pc}`, borderRadius: 8, padding: '8px 10px', cursor: 'grab', background: 'hsl(var(--card))' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: pc }} /><span style={{ fontSize: 10, fontWeight: 700, color: pc }}>{prio}</span></div>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{title}</div>
+              <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{client}</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600, color: wc, marginTop: 5 }}><Icon name={sev === 'block' ? 'ban' : sev === 'warn' ? 'alert-triangle' : 'help-circle'} size={11} />{why}</div>
+            </div>;
+          })}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 300px', gap: 16, alignItems: 'start' }}>
@@ -124,8 +196,10 @@ function CalendarScreen() {
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: TECH_STATE_COLOR[tech.state] }} />{tech.state}</span>
                         <UpcomingPill compact />
                       </div>
-                      <div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                        <span>{tech.jobs} jobs · <span style={{ color: 'hsl(var(--muted-foreground) / 0.7)' }}>{tech.hrs} hrs</span></span><PreviewPill />
+                      <div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><b style={{ color: 'hsl(var(--foreground))' }}>{tech.capacity.sched.toFixed(1)}</b> / {tech.capacity.avail.toFixed(0)} hrs<Icon name="lock" size={9} /></span>
+                        <span>B {tech.capacity.billable.toFixed(1)} · Travel {tech.capacity.travel.toFixed(1)}</span>
+                        <span style={{ color: tech.capacity.gap === 'None' ? 'hsl(var(--muted-foreground))' : 'hsl(var(--warning))' }}>Gap {tech.capacity.gap}</span>
                       </div>
                     </div>
                   </div>
@@ -163,6 +237,13 @@ function CalendarScreen() {
             </span>
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Show weekends
               <span style={{ width: 34, height: 19, borderRadius: 999, background: 'hsl(var(--primary))', position: 'relative' }}><span style={{ position: 'absolute', top: 2, right: 2, width: 15, height: 15, borderRadius: '50%', background: '#fff' }} /></span></span>
+          </div>
+          {/* footer roll-up */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, padding: '10px 16px', borderTop: '1px solid hsl(var(--border))', fontSize: 12, color: 'hsl(var(--muted-foreground))', flexWrap: 'wrap' }}>
+            <span><b style={{ color: 'hsl(var(--foreground))' }}>8</b> technicians</span>
+            <span>Total Scheduled <b style={{ color: 'hsl(var(--foreground))' }}>128.5 hrs</b></span>
+            <span>Total Available <b style={{ color: 'hsl(var(--foreground))' }}>156.0 hrs</b></span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>Utilisation <b style={{ color: 'hsl(var(--foreground))' }}>82%</b><Icon name="lock" size={11} /></span>
           </div>
         </div>
 
@@ -215,6 +296,29 @@ function JobDetail({ job }) {
           <DRow label="Site access" tag={<PreviewPill />}><span style={{ color: 'hsl(var(--muted-foreground))' }}>{job.siteAccess}</span></DRow>
           <DRow label="Linked assets" tag={<UpcomingPill compact />}><span style={{ color: 'hsl(var(--muted-foreground))' }}>—</span></DRow>
           {job.whyNot && <DRow label="Why not scheduled" tag={<ReadOnlyTag compact />}><span style={{ color: 'hsl(var(--destructive))' }}>{job.whyNot}</span></DRow>}
+        </div>
+
+        {/* schedule readiness checklist */}
+        <div style={{ borderTop: '1px solid hsl(var(--border))', marginTop: 11, paddingTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: 'hsl(var(--success))' }}>Schedule Readiness: READY</span><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>All checks passed</span><ReadOnlyTag compact />
+          </div>
+          {[['Skills Verified', 'ok', 'Verified'], ['Site Access Confirmed', 'ok', 'Confirmed'], ['Parts Ready', 'warn', 'Partial — 1 item'], ['Client Confirmed', 'ok', 'Confirmed'], ['Travel Feasible', 'ok', 'ETA 6:45 AM'], ['Award / Overtime Check', 'warn', 'OT likely'], ['Linked Assets', 'ok', '2 assets']].map(([l, s, note], i) => {
+            const c = s === 'ok' ? 'hsl(var(--success))' : 'hsl(var(--warning))';
+            return <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '3px 0', fontSize: 12 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name={s === 'ok' ? 'check-circle-2' : 'alert-triangle'} size={14} color={c} />{l}</span>
+              <span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 11.5 }}>{note}</span></div>;
+          })}
+        </div>
+        {/* issues / risks with next-best-action */}
+        <div style={{ borderTop: '1px solid hsl(var(--border))', marginTop: 11, paddingTop: 10 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 8 }}>Issues / Risks</div>
+          {[['ban', 'hsl(var(--destructive))', 'Parts Missing', 'High — 1× NVR-8CH unit not allocated', 'Order missing parts'], ['alert-triangle', 'hsl(var(--warning))', 'Overtime Risk', 'Medium — visit may exceed standard hours', 'Approve overtime']].map(([ic, c, title, desc, action], i) =>
+            <div key={i} style={{ background: `${c.replace(')', ' / 0.08)')}`, border: `1px solid ${c.replace(')', ' / 0.25)')}`, borderRadius: 8, padding: '8px 10px', marginBottom: 7 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><Icon name={ic} size={14} color={c} /><span style={{ fontSize: 12.5, fontWeight: 600, color: c }}>{title}</span></div>
+              <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', margin: '2px 0 5px' }}>{desc}</div>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--primary))', cursor: 'pointer' }}><Icon name="arrow-right" size={12} />{action}</span>
+            </div>)}
         </div>
 
         <div style={{ marginTop: 13 }}>

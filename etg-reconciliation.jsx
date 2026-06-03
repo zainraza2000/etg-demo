@@ -138,7 +138,7 @@ function ReconciliationScreen() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'hsl(var(--info-subtle))', border: '1px solid hsl(var(--info) / 0.3)', borderRadius: 10, padding: '12px 16px', marginTop: 16, fontSize: 13 }}>
-        <Icon name="info" size={17} color="hsl(var(--info))" /><span><b>Important:</b> No supplier cost will be considered valid until BOTH the bank transaction and supplier invoice are verified and approved by a manager.</span>
+        <Icon name="info" size={17} color="hsl(var(--info))" /><span><b>Important:</b> No supplier cost is valid until BOTH the bank transaction and supplier invoice exist, match, and are manually verified by an authorised user. Auto-match is allowed, but auto-approval is not. The cost must also be assigned to the correct job, included in job costing, and checked before the customer invoice is finalised — supplier cost → job costing → invoice readiness.</span>
       </div>
     </div>
   );
@@ -167,41 +167,93 @@ const RECON_REAL_GATES = ['Bank transaction exists', 'Invoice exists', 'Amounts 
 
 function ReconDetail({ row: r }) {
   const matched = r.bankAmt === r.invAmt;
+  const jobReady = !r.noPo && r.project !== '—';
   const doneCount = RECON_CHECKLIST.filter(([, s]) => s === 'done').length;
   return (
     <div style={{ position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Panel pad={15}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Verification</h3><RcPill status={r.status} />
+          <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Match Review</h3><RcPill status={r.status} />
         </div>
         <div style={{ marginBottom: 11 }}><IdChip id={r.im} /></div>
+
+        {/* ===== SECTION 1 — BANK MATCH ===== */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+          <Icon name="landmark" size={14} color="hsl(var(--info))" /><span style={{ fontSize: 12.5, fontWeight: 700 }}>Bank Match</span><ReadOnlyTag compact />
+        </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <SoT heading="Bank Transaction" icon="landmark" accent="hsl(var(--info))" rows={[['Date', r.bankDate], ['Amount', r.bankAmt, true], ['Reference', <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={10} color="hsl(var(--muted-foreground))" /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.bankRef}</span></span>], ['Account', r.bankAcct]]} />
           <SoT heading="Supplier Invoice" icon="file-text" accent="hsl(var(--success))" tag={<ReadOnlyTag compact />} rows={[['Invoice', <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={10} color="hsl(var(--muted-foreground))" /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.si}</span></span>], ['Subtotal', r.invSub], ['GST', r.invGst], ['Total', r.invAmt, true]]} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '11px 0', padding: '8px 10px', borderRadius: 8,
+        {/* OCR extracted fields */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '9px 0 6px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>
+          <Icon name="scan-line" size={12} />Extracted by OCR<span style={{ color: 'hsl(var(--primary))', fontWeight: 500 }}>· Edit extracted data</span><UpcomingPill compact />
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5 }}>OCR confidence <span style={{ fontWeight: 600 }}>—</span><ReadOnlyTag compact /></span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', marginBottom: 9 }}>
+          {[['Site / customer ref', true], ['Delivery docket #', true], ['Project reference', true], ['Cost category', false]].map(([l, pv], i) =>
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 6, fontSize: 11, padding: '2px 0' }}>
+              <span style={{ color: 'hsl(var(--muted-foreground))' }}>{l}</span>{pv ? <PreviewPill /> : <span style={{ color: 'hsl(var(--muted-foreground))' }}>Materials</span>}</div>)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '4px 0 10px', padding: '8px 10px', borderRadius: 8,
           background: matched ? 'hsl(var(--success-subtle))' : 'hsl(var(--destructive-subtle))', border: `1px solid ${matched ? 'hsl(var(--success) / 0.3)' : 'hsl(var(--destructive) / 0.3)'}` }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><Icon name={matched ? 'check-circle-2' : 'alert-triangle'} size={16} color={matched ? 'hsl(var(--success))' : 'hsl(var(--destructive))'} />
           <span style={{ fontSize: 12.5, fontWeight: 600, color: matched ? 'hsl(var(--success))' : 'hsl(var(--destructive))' }}>{matched ? 'Amounts match' : `Amount mismatch — ${r.bankAmt} vs ${r.invAmt}`}</span></span>
-          <ReadOnlyTag />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 600 }}>Verification Checklist</span>
-          <span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>{doneCount}/{RECON_CHECKLIST.length} complete</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px', marginBottom: 4 }}>
+          {[['Supplier matched', 'done'], ['Amount matched', matched ? 'done' : 'pending'], ['Date close', 'done'], ['Reference matched', 'pending']].map(([l, s], i) => <CheckItem key={i} label={l} state={s} />)}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-          {RECON_CHECKLIST.map(([label, state], i) => <CheckItem key={i} label={label} state={state} upcoming={!RECON_REAL_GATES.includes(label)} />)}
+
+        {/* ===== SECTION 2 — JOB / PO MATCH (net-new) ===== */}
+        <div style={{ borderTop: '1px solid hsl(var(--border))', margin: '12px 0 10px', paddingTop: 11 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+            <Icon name="git-merge" size={14} color="hsl(var(--primary))" /><span style={{ fontSize: 12.5, fontWeight: 700 }}>Job / PO Match</span><ReadOnlyTag compact />
+          </div>
+          {jobReady ? <>
+            <div style={{ background: 'hsl(var(--muted) / 0.45)', borderRadius: 9, padding: '10px 12px', marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '2px 0', fontSize: 12 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>PO Reference</span><span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>PO-001256</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '2px 0', fontSize: 12 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>Linked Job</span><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IdChip id="FJ-001052" /><span>CCTV Upgrade</span></span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '2px 0', fontSize: 12 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>Site / Customer</span><span style={{ fontWeight: 500 }}>ABC Corporate — Level 1</span></div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0, marginBottom: 8 }}>
+              {[['PO extracted', false], ['Job found', false], ['Site / customer matched', false], ['Line items assigned to job', false], ['Cost added to job costing', true]].map(([l, up], i) =>
+                <CheckItem key={i} label={l} state={up ? 'pending' : 'done'} upcoming={up} />)}
+            </div>
+            {/* line items → job mini-table */}
+            <div style={{ border: '1px solid hsl(var(--border))', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'hsl(var(--muted) / 0.4)', fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}><span>Line items → job</span><PreviewPill /></div>
+              {[['8× Dome Camera 8MP', 'CC-000046', 'Materials'], ['Cabling & connectors', 'CC-000046', 'Materials']].map(([l, cc, cat], i) =>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderTop: '1px solid hsl(var(--border))', fontSize: 11.5 }}>
+                  <span style={{ flex: 1 }}>{l}</span><span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'hsl(var(--primary))', background: 'hsl(var(--primary-subtle))', padding: '1px 6px', borderRadius: 999 }}>{cc}</span><span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{cat}</span></div>)}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 12, padding: '7px 10px', background: 'hsl(var(--muted) / 0.4)', border: '1px dashed hsl(var(--border))', borderRadius: 8 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'hsl(var(--muted-foreground))' }}><Icon name="trending-up" size={13} />+$4,145.45 materials → <span style={{ fontFamily: 'var(--font-mono)' }}>FJ-001052</span></span><UpcomingPill compact />
+            </div>
+          </> : <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'hsl(var(--destructive-subtle))', border: '1px solid hsl(var(--destructive) / 0.3)', borderRadius: 9, padding: '9px 12px', marginBottom: 9 }}>
+              <Icon name="alert-triangle" size={16} color="hsl(var(--destructive))" /><span style={{ fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--destructive))' }}>PO missing — job link required</span><span style={{ marginLeft: 'auto' }}><PreviewPill /></span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 0, marginBottom: 9 }}>
+              {['PO extracted', 'Job found', 'Site / customer matched', 'Line items assigned to job', 'Cost added to job costing'].map((l, i) =>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}><Icon name="x-circle" size={13} color="hsl(var(--muted-foreground))" style={{ flexShrink: 0 }} />{l}</div>)}
+            </div>
+            <div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginBottom: 7 }}>Every resolution is a manual, audited action.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+              {['Link to existing job', 'Link to project', 'Split across multiple jobs', 'Mark as overhead', 'Send back for review'].map((l, i) =>
+                <button key={i} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, border: '1px solid hsl(var(--input))', background: 'hsl(var(--card))', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 500, color: 'hsl(var(--foreground))', gridColumn: i === 4 ? '1 / -1' : 'auto' }}>
+                  {l}<Icon name="sparkles" size={11} color="hsl(258 70% 60%)" /></button>)}
+            </div>
+          </>}
         </div>
+
         <div style={{ display: 'flex', gap: 9, marginTop: 13 }}>
-          <Button variant="primary" icon="check" style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))' }}>Verify</Button>
+          <Button variant="primary" icon="check" style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(jobReady ? {} : { opacity: 0.5, pointerEvents: 'none' }) }}>Verify</Button>
           <Button variant="outline" icon="flag" style={{ flex: 1, justifyContent: 'center' }}>Exception</Button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 9, padding: '8px 10px', background: 'hsl(var(--muted) / 0.45)', borderRadius: 8 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}><Icon name="lock" size={13} />Lock into financials<UpcomingPill compact /></span>
           <span title="Pushes the verified cost into project financials &amp; invoice readiness" style={{ fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))', borderRadius: 7, padding: '3px 10px', cursor: 'not-allowed', opacity: 0.6 }}>Lock</span>
         </div>
-        {r.marginFlag && <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, fontSize: 11.5, color: 'hsl(var(--warning))', background: 'hsl(var(--warning-subtle))', border: '1px solid hsl(var(--warning) / 0.3)', borderRadius: 8, padding: '7px 10px' }}>
-          <Icon name="alert-triangle" size={13} />Margin &lt; 10% — manager review required<span style={{ marginLeft: 'auto' }}><UpcomingPill compact /></span></div>}
       </Panel>
 
       <Panel pad={15}>

@@ -17,6 +17,7 @@ function Placeholder({ id }) {
 function App() {
   const [active, setActive] = useStateApp('projects');
   const [subpage, setSubpage] = useStateApp(null); // e.g. 'new-ticket', 'new-project'
+  const [collapsed, setCollapsed] = useStateApp(false);
 
   function navigate(id) { setSubpage(null); setActive(id); }
 
@@ -39,9 +40,9 @@ function App() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'hsl(var(--sidebar))', overflow: 'hidden' }}>
-      <TopBar />
+      <TopBar collapsed={collapsed} />
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <Sidebar active={railActive} onNavigate={navigate} />
+        <Sidebar active={railActive} onNavigate={navigate} collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
         <main style={{ flex: 1, minWidth: 0, background: 'hsl(var(--background))', borderTopLeftRadius: 22, overflow: 'auto' }}>
           <div style={{ padding: '26px 28px 40px' }}>
             {renderContent()}
