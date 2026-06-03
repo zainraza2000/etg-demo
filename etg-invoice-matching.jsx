@@ -17,10 +17,6 @@ function MtConf({ conf }) {
   const c = conf >= 95 ? 'hsl(var(--success))' : conf >= 80 ? 'hsl(var(--info))' : conf >= 60 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))';
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ width: 54, height: 6, background: 'hsl(var(--muted))', borderRadius: 999 }}><span style={{ display: 'block', height: '100%', width: `${conf}%`, background: c, borderRadius: 999 }} /></span><span style={{ fontSize: 12, fontWeight: 600 }}>{conf}%</span></span>;
 }
-function SupplierLogo({ name }) {
-  const init = (name || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-  return <span style={{ width: 26, height: 20, borderRadius: 4, background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}>{init}</span>;
-}
 // KPI card — engine roll-ups (Read-only); bank-feed-dependent tiles are Preview (muted).
 function MtKpiCard({ title, value, sub, icon, color, readOnly, preview, onClick, active }) {
   const clickable = !!onClick;
@@ -36,6 +32,23 @@ function MtKpiCard({ title, value, sub, icon, color, readOnly, preview, onClick,
     </div>
   );
 }
+
+// ---- main match table: granular 11-column ledger ----
+const MT_GRID = '78px 64px minmax(54px,1.2fr) 92px 82px 122px 76px 64px 86px 98px 58px';
+function MtSupplierTile({ name }) {
+  const ini = (name || '?').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  return <span style={{ width: 26, height: 20, borderRadius: 5, background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}>{ini}</span>;
+}
+function MtRowActions({ r, onStatus }) {
+  const noBank = r.bankAmt === '—'; const noInv = r.invAmt === '—';
+  const stop = (e) => e.stopPropagation();
+  if (noInv) return <button onClick={stop} style={{ fontSize: 10.5, fontWeight: 600, border: '1px solid hsl(var(--input))', borderRadius: 6, background: 'hsl(var(--card))', color: 'hsl(var(--primary))', padding: '3px 7px', cursor: 'pointer', fontFamily: 'inherit' }}>Request</button>;
+  if (noBank) return <button onClick={stop} style={{ fontSize: 10.5, fontWeight: 600, border: '1px solid hsl(var(--input))', borderRadius: 6, background: 'hsl(var(--card))', color: 'hsl(var(--primary))', padding: '3px 7px', cursor: 'pointer', fontFamily: 'inherit' }}>Find</button>;
+  return <span style={{ display: 'inline-flex', gap: 5, color: 'hsl(var(--muted-foreground))' }} onClick={stop}>
+    <Icon name="eye" size={14} /><Icon name="pencil" size={14} /><Icon name="more-horizontal" size={14} /></span>;
+}
+const mtTh = { padding: '8px 10px', fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 };
+const mtTd = { padding: '11px 10px', fontSize: 12, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' };
 
 function InvoiceMatchingScreen() {
   const [selected, setSelected] = useStateMt('m1');
@@ -116,55 +129,59 @@ function InvoiceMatchingScreen() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 16, alignItems: 'start' }}>
         <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
-          {/* Source-of-Truth multi-column header band */}
-          <div style={{ display: 'grid', gridTemplateColumns: '78px 64px minmax(54px,1.2fr) 92px 82px 122px 76px 64px 86px 98px 58px', borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', minWidth: 1000 }}>
-            <div style={{ gridColumn: '1', padding: '8px 10px 2px', fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>Status<ReadOnlyTag /></div>
-            <div style={{ gridColumn: '2 / 6', padding: '6px 10px 2px', fontSize: 11, fontWeight: 600, color: 'hsl(var(--info))', display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', borderLeft: '1px solid hsl(var(--border))' }}><Icon name="landmark" size={12} />Bank Transaction (Source of Truth #1)<PreviewPill /></div>
-            <div style={{ gridColumn: '6', padding: '8px 10px 2px', fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', borderLeft: '1px solid hsl(var(--border))' }}>Supplier</div>
-            <div style={{ gridColumn: '7 / 10', padding: '6px 10px 2px', fontSize: 11, fontWeight: 600, color: 'hsl(var(--success))', display: 'flex', alignItems: 'center', gap: 5, borderLeft: '1px solid hsl(var(--border))' }}><Icon name="file-text" size={12} />Invoice (Source of Truth #2)</div>
-            <div style={{ gridColumn: '10', padding: '8px 10px 2px', fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', borderLeft: '1px solid hsl(var(--border))' }}>Match Details<ReadOnlyTag /></div>
-            <div style={{ gridColumn: '11', padding: '8px 10px 2px', fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))', borderLeft: '1px solid hsl(var(--border))' }}>Actions</div>
+          <div style={{ minWidth: 1000 }}>
+          {/* band header row */}
+          <div style={{ display: 'grid', gridTemplateColumns: MT_GRID, borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)' }}>
+            <div style={{ ...mtTh, flexWrap: 'wrap' }}>Status<ReadOnlyTag /></div>
+            <div style={{ ...mtTh, gridColumn: '2 / 6', color: 'hsl(var(--info))', borderLeft: '1px solid hsl(var(--border))', flexWrap: 'wrap' }}><Icon name="landmark" size={13} />Bank Transaction <span style={{ fontWeight: 400, fontSize: 10 }}>(Source of Truth #1)</span><PreviewPill /></div>
+            <div style={{ ...mtTh, borderLeft: '1px solid hsl(var(--border))' }}>Supplier</div>
+            <div style={{ ...mtTh, gridColumn: '7 / 10', color: 'hsl(var(--success))' }}><Icon name="file-text" size={13} />Invoice <span style={{ fontWeight: 400, fontSize: 10 }}>(Source of Truth #2)</span></div>
+            <div style={{ ...mtTh, borderLeft: '1px solid hsl(var(--border))', flexWrap: 'wrap' }}>Match Details<ReadOnlyTag /></div>
+            <div style={{ ...mtTh }}>Actions</div>
           </div>
-          {/* sub-column labels */}
-          <div style={{ display: 'grid', gridTemplateColumns: '78px 64px minmax(54px,1.2fr) 92px 82px 122px 76px 64px 86px 98px 58px', borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', minWidth: 1000 }}>
-            <div style={{ gridColumn: '2', padding: '0 10px 6px', fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>Date</div>
-            <div style={{ gridColumn: '3', padding: '0 10px 6px', fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>Description / Reference</div>
-            <div style={{ gridColumn: '4', padding: '0 10px 6px', fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>Account</div>
-            <div style={{ gridColumn: '5', padding: '0 10px 6px', fontSize: 10, color: 'hsl(var(--muted-foreground))', textAlign: 'right' }}>Amount</div>
-            <div style={{ gridColumn: '7', padding: '0 10px 6px', fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>Invoice #</div>
-            <div style={{ gridColumn: '8', padding: '0 10px 6px', fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>Date</div>
-            <div style={{ gridColumn: '9', padding: '0 10px 6px', fontSize: 10, color: 'hsl(var(--muted-foreground))', textAlign: 'right' }}>Amount</div>
+          {/* sub-header row */}
+          <div style={{ display: 'grid', gridTemplateColumns: MT_GRID, borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.25)' }}>
+            <div style={{ ...mtTh, fontSize: 10 }} />
+            <div style={{ ...mtTh, fontSize: 10 }}>Date</div>
+            <div style={{ ...mtTh, fontSize: 10 }}>Description / Ref</div>
+            <div style={{ ...mtTh, fontSize: 10 }}>Account</div>
+            <div style={{ ...mtTh, fontSize: 10, justifyContent: 'flex-end' }}>Amount</div>
+            <div style={{ ...mtTh, fontSize: 10 }} />
+            <div style={{ ...mtTh, fontSize: 10 }}>Invoice #</div>
+            <div style={{ ...mtTh, fontSize: 10 }}>Date</div>
+            <div style={{ ...mtTh, fontSize: 10, justifyContent: 'flex-end' }}>Amount</div>
+            <div style={{ ...mtTh, fontSize: 10 }} />
+            <div style={{ ...mtTh, fontSize: 10 }} />
           </div>
           {rows.length === 0 && <div style={{ padding: '26px 12px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No items in this tab.</div>}
           {visible.map((r) => {
             const isSel = selected === r.id;
             const noBank = r.bankAmt === '—'; const noInv = r.invAmt === '—';
-            return <div key={r.id} onClick={() => setSelected(r.id)} style={{ display: 'grid', gridTemplateColumns: '78px 64px minmax(54px,1.2fr) 92px 82px 122px 76px 64px 86px 98px 58px', borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent', alignItems: 'center', fontSize: 12, minWidth: 1000 }}>
-              <div style={{ gridColumn: '1', padding: '10px' }}><MtPill status={r.status} />{r.exType && <ExTypeChip type={r.exType} />}{r.reason && <div style={{ fontSize: 10, color: 'hsl(var(--destructive))', marginTop: 3, lineHeight: 1.3 }}>{r.reason}</div>}</div>
-              {noBank
-                ? <div style={{ gridColumn: '2 / 6', padding: '10px', fontSize: 12, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>No bank transaction</div>
-                : <>
-                  <div style={{ gridColumn: '2', padding: '10px', color: 'hsl(var(--muted-foreground))', fontSize: 11.5 }}>{r.bankDate}</div>
-                  <div style={{ gridColumn: '3', padding: '10px', minWidth: 0 }}><div style={{ fontWeight: 600, color: 'hsl(var(--muted-foreground))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.bankDesc}</div><div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={9} /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.bankRef}</span></div></div>
-                  <div style={{ gridColumn: '4', padding: '10px', color: 'hsl(var(--muted-foreground))', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.account}</div>
-                  <div style={{ gridColumn: '5', padding: '10px', textAlign: 'right', fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>{r.bankAmt}</div>
-                </>}
-              <div style={{ gridColumn: '6', padding: '10px', display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>{noInv ? <span style={{ color: 'hsl(var(--muted-foreground))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.supplier}</span> : <><SupplierLogo name={r.supplier} /><span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.supplier}</span></>}</div>
-              {noInv
-                ? <div style={{ gridColumn: '7 / 10', padding: '10px', fontSize: 12, color: 'hsl(var(--muted-foreground))', fontStyle: 'italic' }}>No invoice — {r.action === 'request' ? 'request from supplier' : 'awaiting'}</div>
-                : <>
-                  <div style={{ gridColumn: '7', padding: '10px', color: 'hsl(var(--primary))', fontWeight: 600 }}>{r.inv}</div>
-                  <div style={{ gridColumn: '8', padding: '10px', color: 'hsl(var(--muted-foreground))', fontSize: 11.5 }}>{r.invDate}</div>
-                  <div style={{ gridColumn: '9', padding: '10px', textAlign: 'right', fontWeight: 700, color: r.mismatch ? 'hsl(var(--destructive))' : 'inherit' }}>{r.invAmt}{r.split && <div style={{ fontSize: 9.5, color: 'hsl(var(--muted-foreground))', fontWeight: 500 }}>Split · 2</div>}{r.partial && <div style={{ fontSize: 9.5, color: 'hsl(var(--warning))', fontWeight: 500 }}>Partial</div>}</div>
-                </>}
-              <div style={{ gridColumn: '10', padding: '10px' }}><MtConf conf={r.conf} /></div>
-              <div style={{ gridColumn: '11', padding: '10px', display: 'flex', alignItems: 'center', gap: 6, color: 'hsl(var(--muted-foreground))' }} onClick={(e) => e.stopPropagation()}>
-                {noInv && r.action === 'request' ? <Button variant="outline" icon="mail" style={{ padding: '3px 7px', fontSize: 10.5 }}>Request</Button>
-                  : noBank ? <Button variant="outline" icon="search" style={{ padding: '3px 7px', fontSize: 10.5 }}>Find</Button>
-                  : <><Icon name="eye" size={14} /><Icon name="pencil" size={14} /><Icon name="more-horizontal" size={14} /></>}
-              </div>
+            return <div key={r.id} onClick={() => setSelected(r.id)} style={{ display: 'grid', gridTemplateColumns: MT_GRID, borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent', alignItems: 'stretch' }}>
+              {/* 1 status */}
+              <div style={{ ...mtTd }}><MtPill status={r.status} />{r.exType && <ExTypeChip type={r.exType} />}{r.reason && <div style={{ fontSize: 9.5, color: 'hsl(var(--destructive))', marginTop: 3, lineHeight: 1.3 }}>{r.reason}</div>}</div>
+              {/* 2-5 bank (or collapse) */}
+              {noBank ? <div style={{ ...mtTd, gridColumn: '2 / 6', color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', opacity: 0.7 }}>No bank transaction</div> : <>
+                <div style={{ ...mtTd, color: 'hsl(var(--muted-foreground))' }}>{r.bankDate}</div>
+                <div style={{ ...mtTd, minWidth: 0 }}><span style={{ fontWeight: 600, color: 'hsl(var(--muted-foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.bankDesc}</span><span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={9} /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.bankRef}</span></span></div>
+                <div style={{ ...mtTd, color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>{r.account}</div>
+                <div style={{ ...mtTd, alignItems: 'flex-end', fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>{r.bankAmt}</div>
+              </>}
+              {/* 6 supplier */}
+              <div style={{ ...mtTd, flexDirection: 'row', alignItems: 'center', gap: 7 }}><MtSupplierTile name={r.supplier} /><span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.supplier}</span></div>
+              {/* 7-9 invoice (or collapse) */}
+              {noInv ? <div style={{ ...mtTd, gridColumn: '7 / 10', color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', opacity: 0.7 }}>No invoice — {r.action === 'request' ? 'request from supplier' : 'awaiting'}</div> : <>
+                <div style={{ ...mtTd, color: 'hsl(var(--primary))', fontWeight: 600 }}>{r.inv}</div>
+                <div style={{ ...mtTd, color: 'hsl(var(--muted-foreground))' }}>{r.invDate}</div>
+                <div style={{ ...mtTd, alignItems: 'flex-end', fontWeight: 700, color: r.mismatch ? 'hsl(var(--destructive))' : 'inherit' }}>{r.invAmt}{r.split && <span style={{ fontSize: 9.5, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>Split · 2</span>}{r.partial && <span style={{ fontSize: 9.5, fontWeight: 500, color: 'hsl(var(--warning))' }}>Partial</span>}</div>
+              </>}
+              {/* 10 match */}
+              <div style={{ ...mtTd }}><MtConf conf={r.conf} /></div>
+              {/* 11 actions */}
+              <div style={{ ...mtTd, flexDirection: 'row', alignItems: 'center' }}><MtRowActions r={r} onStatus={setStatus} /></div>
             </div>;
           })}
+          </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 14px 8px' }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Rows:</span><Select label="Rows" value={rowsPer} options={['8', '10', '25', '50']} onChange={(v) => { setRowsPer(v); setPage(1); }} /></span>
