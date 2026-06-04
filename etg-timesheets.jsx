@@ -1,13 +1,10 @@
 // ETG Dashboard — Timesheets: validation & approval engine surface.
 const { useState: useStateTs } = React;
 
-function tsStatusStyle(status) {
-  const map = { 'Approved': 'complete', 'Pending': 'warning', 'Pending Approval': 'warning', 'Rejected': 'overdue', 'No Timesheet': 'draft' };
-  const v = `var(--status-${map[status] || 'draft'})`;
-  return { background: `hsl(${v} / 0.13)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.30)` };
-}
+// timesheets status vocabulary → shared status tone
+const TS_TONE = { 'Approved': 'complete', 'Pending': 'warning', 'Pending Approval': 'warning', 'Rejected': 'overdue', 'No Timesheet': 'draft' };
 function TsPill({ status }) {
-  return <span style={{ ...tsStatusStyle(status), display: 'inline-flex', alignItems: 'center', padding: '2px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{status}</span>;
+  return <StatusBadge status={status} tone={TS_TONE[status] || 'draft'} />;
 }
 function TypePill({ type }) {
   if (!type) return <span style={{ color: 'hsl(var(--muted-foreground))' }}>—</span>;
@@ -79,19 +76,10 @@ function techState(t) {
   return { readiness: 'Ready to approve', ...ex['Ready to approve'] };
 }
 
-// KPI card — clickable workflow filter
-function TsKpiCard({ k, active, onClick }) {
-  return (
-    <div onClick={onClick} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: 'pointer' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[k.color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}><Icon name={k.icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{k.title}</div>
-        <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 4px', letterSpacing: '-0.02em', color: 'hsl(var(--muted-foreground))' }}>{k.value}</div>
-        {k.caption && <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>{k.caption}</div>}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 500, color: 'hsl(var(--primary))' }}><Icon name="filter" size={11} />Click to filter</div>
-      </div>
-    </div>
-  );
+// adapt a timesheets workflow-filter record to shared KpiCard props (muted value + Click-to-filter)
+function tsKpiProps(k) {
+  return { title: k.title, value: k.value, caption: k.caption, icon: k.icon, color: k.color,
+    valueSize: 24, valueMuted: true, iconOpacity: 0.6, filter: true };
 }
 
 // ---- invoice readiness (per line) ----
@@ -156,8 +144,8 @@ function TimesheetsScreen() {
         </>} />
 
       {/* clickable metric cards */}
-      <div style={{ marginBottom: 14, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
-        {TS_FILTERS.map((k) => <TsKpiCard key={k.key} k={k} active={filter === k.key} onClick={() => setFilter(filter === k.key ? null : k.key)} />)}
+      <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'nowrap', gap: 12 }}>
+        {TS_FILTERS.map((k) => <KpiCard key={k.key} {...tsKpiProps(k)} active={filter === k.key} onClick={() => setFilter(filter === k.key ? null : k.key)} />)}
       </div>
 
       {/* filter bar */}
@@ -215,12 +203,11 @@ function TimesheetsScreen() {
                         {(() => {
                           const real = t.entries.filter((e) => e.type); const out = []; const byDay = {}; const order = [];
                           real.forEach((e) => { if (!byDay[e.day]) { byDay[e.day] = []; order.push(e.day); } byDay[e.day].push(e); });
-                          order.forEach((day) => {
+                          order.forEach((day, di) => {
                             const lines = byDay[day]; const multi = lines.length > 1;
-                            if (multi) out.push(<tr key={'s' + day} style={{ background: 'hsl(var(--muted) / 0.4)' }}><td style={{ padding: '6px 12px 6px 52px', fontWeight: 600, fontSize: 11.5 }}>{day} · {sumHrs(lines)}h total</td><td colSpan={8} style={{ padding: '6px 12px', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{lines.length} jobs</td></tr>);
                             lines.forEach((e, k) => { const bs = breakStateFor(e, __gi++); out.push(
-                              <tr key={day + k} style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-                                <td style={{ padding: '9px 12px 9px 52px', color: multi ? 'hsl(var(--muted-foreground))' : 'inherit' }}>{multi ? '' : e.day}</td>
+                              <tr key={day + k} style={{ borderBottom: '1px solid hsl(var(--border))', borderTop: k === 0 && di > 0 ? '1px solid hsl(var(--border))' : 'none' }}>
+                                <td style={{ padding: '9px 12px 9px 52px', verticalAlign: 'top' }}>{k === 0 && <span style={{ display: 'inline-flex', flexDirection: 'column' }}><span style={{ fontWeight: 600 }}>{day}</span>{multi && <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>{sumHrs(lines)}h total</span>}</span>}</td>
                                 <td style={{ padding: '9px 12px', color: e.job.startsWith('FJ') ? 'hsl(var(--primary))' : 'inherit', fontWeight: e.job.startsWith('FJ') ? 500 : 400 }}>{e.job}</td>
                                 <td style={{ padding: '9px 12px', color: 'hsl(var(--muted-foreground))' }}>{e.loc}</td>
                                 <td style={{ padding: '9px 12px' }}><SiteTime time={e.time} zone={siteZoneFor(e.loc)} small /></td>
@@ -258,7 +245,7 @@ function SubcontractorRow() {
     <td style={{ padding: '11px 8px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span style={{ width: 32, height: 32, borderRadius: '50%', background: 'hsl(var(--accent))', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>HW</span><div><div style={{ fontWeight: 600 }}>Hi-Wire Contracting</div><div style={{ marginTop: 3, fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--accent))', background: 'hsl(var(--accent-subtle))', border: '1px solid hsl(var(--accent) / 0.3)', padding: '1px 7px', borderRadius: 999, display: 'inline-block' }}>Subcontractor — claim flow</div></div></div></td>
     <td style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12.5 }}>Claim attached · PO-001302</td>
     <td style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Agreed-rate check · Retention 5%</td>
-    <td><span style={{ ...tsStatusStyle('Pending Approval'), display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}><Icon name="file-text" size={11} />Payment approval</span></td>
+    <td><span style={{ ...statusStyle('Pending Approval', TS_TONE['Pending Approval']), display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}><Icon name="file-text" size={11} />Payment approval</span></td>
     <td style={{ textAlign: 'right', padding: '10px 16px' }}><UpcomingPill compact /></td>
   </tr>;
 }
@@ -299,6 +286,9 @@ function ApprovalDrawer({ t, onClose, onStatus }) {
   const entries = t.entries.filter((e) => e.type);
   const [dtab, setDtab] = React.useState('Summary');
   const [composer, setComposer] = React.useState(null);
+  const [reasonOpen, setReasonOpen] = React.useState(false);
+  const [reason, setReason] = React.useState('');
+  const warn = st.exceptions.some(([, s]) => s === 'warn');
   const TABS = ['Summary', `Entries (${entries.length})`, 'Breaks', 'Notes'];
   let gi = 0;
   return (
@@ -313,11 +303,20 @@ function ApprovalDrawer({ t, onClose, onStatus }) {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, margin: '10px 0' }}><ReadinessBadge state={st.readiness} compact /><DualReady payroll={st.payroll} invoice={st.invoice} /></div>
           <div style={{ display: 'flex', gap: 9 }}>
-            <Button variant="primary" icon="check" onClick={() => !block && onStatus && onStatus(t.id, 'Approved')} style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(block ? { opacity: 0.5, pointerEvents: 'none' } : {}) }}>Approve</Button>
+            <Button variant="primary" icon="check" onClick={() => { if (block) return; if (warn && !reasonOpen) { setReasonOpen(true); return; } onStatus && onStatus(t.id, 'Approved'); }} style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(block ? { opacity: 0.5, pointerEvents: 'none' } : {}) }}>Approve</Button>
             <Button variant="destructive" icon="x" onClick={() => onStatus && onStatus(t.id, 'Rejected')} style={{ flex: 1, justifyContent: 'center' }}>Reject</Button>
             <Button variant="outline" icon="rotate-ccw" onClick={() => onStatus && onStatus(t.id, 'Pending Approval')} style={{ flex: 1, justifyContent: 'center' }}>Request changes</Button>
           </div>
           {block && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11.5, color: 'hsl(var(--destructive))' }}><Icon name="ban" size={13} />Approve disabled — resolve block-class exceptions first.</div>}
+          {reasonOpen && !block && <div style={{ marginTop: 10, border: '1px solid hsl(var(--warning) / 0.4)', background: 'hsl(var(--warning-subtle) / 0.5)', borderRadius: 9, padding: 11 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(28 80% 38%)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}><Icon name="shield-alert" size={14} />Override reason required <span style={{ fontWeight: 400, color: 'hsl(var(--muted-foreground))' }}>— approving over {st.exceptions.filter(([, s]) => s === 'warn').length} warning(s)</span></div>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Break waived — short shift agreed with tech; OT pre-approved by manager" style={{ width: '100%', height: 48, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: 9, boxSizing: 'border-box', fontSize: 12.5, fontFamily: 'inherit', resize: 'none' }} />
+            <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
+              <Button variant="primary" icon="check" onClick={() => reason.trim() && onStatus && onStatus(t.id, 'Approved')} style={{ flex: 1, justifyContent: 'center', background: 'hsl(var(--success))', ...(reason.trim() ? {} : { opacity: 0.5, pointerEvents: 'none' }) }}>Confirm approval</Button>
+              <Button variant="outline" onClick={() => { setReasonOpen(false); setReason(''); }} style={{ justifyContent: 'center' }}>Cancel</Button>
+            </div>
+            <div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="lock" size={10} />Reason is recorded on the entry's audit trail.</div>
+          </div>}
           {/* detail tab strip */}
           <div style={{ display: 'flex', gap: 16, marginTop: 12, marginBottom: -14 }}>
             {TABS.map((tab) => { const on = dtab === tab.split(' ')[0] || dtab === tab;
@@ -329,6 +328,15 @@ function ApprovalDrawer({ t, onClose, onStatus }) {
         </div>
 
         <div style={{ padding: '16px 18px 40px' }}>
+          {(() => {
+            const e0 = entries.find((e) => e.loc && e.loc.indexOf('–') > -1) || entries[0] || {};
+            const customer = (e0.loc || 'ABC Corporate – Level 1').split('–')[0].trim();
+            const area = (e0.loc || '').split('–')[1] ? (e0.loc || '').split('–')[1].trim() : '';
+            const site = primarySite(customer) || area || '—';
+            const info = siteInfo(customer, site) || {};
+            const link = (e0.job || '').split('–')[0].trim() || '—';
+            return <SiteContextHeader customer={customer} site={site} address={info.address} contact={info.contact} link={link} tech={t.tech} />;
+          })()}
           {dtab === 'Summary' && <TsSummaryTab t={t} st={st} composer={composer} setComposer={setComposer} />}
           {dtab === 'Breaks' && <div>{entries.map((e, i) => { const bs = breakStateFor(e, gi++); return <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid hsl(var(--border))', borderRadius: 8, padding: '9px 11px', marginBottom: 7, fontSize: 12.5 }}>
             <span><span style={{ fontWeight: 600 }}>{e.day}</span> <span style={{ color: 'hsl(var(--muted-foreground))' }}>· {e.job}</span></span><BreakBadge state={bs} /></div>; })}</div>}
@@ -375,6 +383,24 @@ function ApprovalDrawer({ t, onClose, onStatus }) {
                 <span style={{ width: 50, textAlign: 'right', fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--input))', borderRadius: 7, padding: '6px 9px', background: 'hsl(var(--muted) / 0.45)' }}>{h}h</span></div>)}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '7px 11px', marginTop: 4, fontSize: 12.5, background: 'hsl(var(--muted) / 0.45)', color: 'hsl(var(--muted-foreground))' }}><span>Labour type: Internal admin → non-billable</span><Icon name="chevron-down" size={14} /></div>
             <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>Rule-bound: "Internal admin" forces chargeable-to-client = false (reason required).</div>
+          </DrawerSection>
+
+          {/* reason codes */}
+          <DrawerSection title="Materials used" tag={<PreviewPill />}>
+            <div style={{ border: '1px solid hsl(var(--border))', borderRadius: 9, overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 40px 56px 1fr 70px', background: 'hsl(var(--muted) / 0.5)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', color: 'hsl(var(--muted-foreground))', padding: '7px 11px', gap: 6 }}>
+                <span>Material</span><span style={{ textAlign: 'right' }}>Qty</span><span>Unit</span><span>Supplier</span><span style={{ textAlign: 'right' }}>Cost</span>
+              </div>
+              {[['Cat6 cable', '35', 'metres', 'Dicker Data', '$87.50', 'Used for office data runs'], ['RJ45 mech', '4', 'each', 'Dicker Data', '$11.20', 'Installed at desks'], ['Patch lead', '2', 'each', 'Van stock', '—', 'Comms cabinet']].map(([m, q, u, sup, cost, note], i) =>
+                <div key={i} style={{ borderTop: '1px solid hsl(var(--border))', padding: '8px 11px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 40px 56px 1fr 70px', gap: 6, fontSize: 12.5, alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600 }}>{m}</span><span style={{ textAlign: 'right', fontWeight: 700 }}>{q}</span><span style={{ color: 'hsl(var(--muted-foreground))' }}>{u}</span><span style={{ color: 'hsl(var(--muted-foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sup}</span><span style={{ textAlign: 'right', fontWeight: 600, color: cost === '—' ? 'hsl(var(--muted-foreground))' : 'inherit' }}>{cost}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 2, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="sticky-note" size={10} />{note}</div>
+                </div>)}
+              <div style={{ borderTop: '1px solid hsl(var(--border))', padding: '7px 11px' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--primary))', cursor: 'pointer' }}><Icon name="plus" size={13} />Add material line</span></div>
+            </div>
+            <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="info" size={12} />Captured against this site &amp; job — later feeds supplier-invoice matching, job costing &amp; margin checks. Each line needs at least a description &amp; quantity.</div>
           </DrawerSection>
 
           {/* reason codes */}

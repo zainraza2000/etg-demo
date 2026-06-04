@@ -1,7 +1,7 @@
 // ETG Dashboard — Create New Project (full page, route /projects/new).
 const { useState: useStateCP } = React;
 
-const cpInput = { width: '100%', height: 40, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '0 11px', boxSizing: 'border-box', fontSize: 13.5, fontFamily: 'inherit', background: 'hsl(var(--card))', color: 'hsl(var(--foreground))' };
+const cpInput = { width: '100%', minWidth: 0, height: 40, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '0 11px', boxSizing: 'border-box', fontSize: 13.5, fontFamily: 'inherit', background: 'hsl(var(--card))', color: 'hsl(var(--foreground))' };
 function CpField({ label, req, hint, tag, children }) {
   return <div><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
     <label style={{ fontSize: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}>{label}{req && <span style={{ color: 'hsl(var(--destructive))' }}>*</span>}{tag}</label>

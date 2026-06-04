@@ -1,20 +1,6 @@
 // ETG Dashboard — Projects screen.
 const { useState: useStateProj } = React;
 
-// KPI card with read-only (engine-computed) support.
-function ProjKpiCard({ title, value, sub, icon, color, readOnly, onClick, active }) {
-  const clickable = !!onClick;
-  return (
-    <div onClick={onClick} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: readOnly ? 0.55 : 1 }}><Icon name={icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 6px', letterSpacing: '-0.02em', color: readOnly ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{readOnly ? '—' : value}</div>
-        {readOnly ? <ReadOnlyTag /> : <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: clickable ? 'pointer' : 'default' }}>{sub}</div>}
-      </div>
-    </div>
-  );
-}
 const PROJ_KPIS = [
   { title: 'Active Projects', value: '28', sub: 'View all', icon: 'folder', color: 'blue' },
   { title: 'Total Contract Value', value: '$4,280,950', sub: 'View report', icon: 'dollar-sign', color: 'green' },
@@ -87,10 +73,12 @@ function ProjectsScreen({ onNewProject }) {
           <Button variant="outline" icon="filter">Filters</Button>
           <Button variant="primary" icon="plus" onClick={onNewProject}>New Project</Button>
         </>} />
-      <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
+      <div style={{ marginBottom: 18, display: 'flex', flexWrap: 'nowrap', gap: 12 }}>
         {PROJ_KPIS.map((k, i) => i === 4
-          ? <ProjKpiCard key={i} {...k} readOnly={false} value={String(PROJECTS.filter((p) => p.margin < 10).length)} sub="View list" onClick={() => { setMarginRiskOnly((v) => !v); reset(); }} active={marginRiskOnly} />
-          : <ProjKpiCard key={i} {...k} />)}
+          ? <KpiCard key={i} title={k.title} icon={k.icon} color={k.color} value={String(PROJECTS.filter((p) => p.margin < 10).length)} sub="View list" onClick={() => { setMarginRiskOnly((v) => !v); reset(); }} active={marginRiskOnly} />
+          : k.readOnly
+            ? <KpiCard key={i} title={k.title} icon={k.icon} color={k.color} valueMuted iconOpacity={0.55} tag={<ReadOnlyTag />} />
+            : <KpiCard key={i} title={k.title} value={k.value} sub={k.sub} icon={k.icon} color={k.color} />)}
       </div>
 
       {/* filter bar — search + live filters; More Filters tagged Upcoming */}
@@ -178,21 +166,30 @@ function ProjectsScreen({ onNewProject }) {
 function ProjectBoard({ projects, onSelect }) {
   const cols = ['Quoted', 'In Progress', 'On Hold', 'Completed'];
   const marginColor = (m) => m < 0 ? 'hsl(var(--destructive))' : m < 10 ? 'hsl(var(--warning))' : 'hsl(var(--success))';
+  const [moved, setMoved] = useStateProj({});
+  const [dragId, setDragId] = useStateProj(null);
+  const [over, setOver] = useStateProj(null);
+  const statusOf = (p) => moved[p.id] || p.status;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, alignItems: 'start' }}>
       {cols.map((status) => {
-        const cards = projects.filter((p) => p.status === status);
+        const cards = projects.filter((p) => statusOf(p) === status);
         return (
-          <div key={status}>
+          <div key={status}
+            onDragOver={dragId ? (e) => { e.preventDefault(); if (over !== status) setOver(status); } : undefined}
+            onDragLeave={dragId ? () => { if (over === status) setOver(null); } : undefined}
+            onDrop={dragId ? () => { setMoved((m) => ({ ...m, [dragId]: status })); setDragId(null); setOver(null); } : undefined}
+            style={{ borderRadius: 12, padding: over === status ? 6 : 0, background: over === status ? 'hsl(var(--primary) / 0.06)' : 'transparent', outline: over === status ? '2px dashed hsl(var(--primary))' : 'none', outlineOffset: '-2px', transition: 'background .1s' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <StatusBadge status={status} />
               <span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{cards.length}</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {cards.length === 0 && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '14px 0', textAlign: 'center' }}>No projects</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 40 }}>
+              {cards.length === 0 && <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '14px 0', textAlign: 'center' }}>Drop a project here</div>}
               {cards.map((p) => (
-                <div key={p.id} onClick={() => onSelect(p.id)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 12, boxShadow: p.margin < 10 ? 'inset 3px 0 0 hsl(var(--destructive)), var(--shadow-sm)' : 'var(--shadow-sm)', cursor: 'pointer' }}>
-                  <IdChip id={p.id} />
+                <div key={p.id} draggable onDragStart={(e) => { setDragId(p.id); e.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => { setDragId(null); setOver(null); }}
+                  onClick={() => onSelect(p.id)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 12, boxShadow: p.margin < 10 ? 'inset 3px 0 0 hsl(var(--destructive)), var(--shadow-sm)' : 'var(--shadow-sm)', cursor: 'grab', opacity: dragId === p.id ? 0.45 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="grip-vertical" size={13} color="hsl(var(--muted-foreground))" /><IdChip id={p.id} /></div>
                   <div style={{ fontSize: 13, fontWeight: 600, margin: '6px 0 2px' }}>{p.name}</div>
                   <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>{p.client}</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
@@ -221,6 +218,50 @@ function QuickAction({ label, tag, muted }) {
     onMouseEnter={(e) => { if (clickable) e.currentTarget.style.background = 'hsl(var(--primary-subtle))'; }}
     onMouseLeave={(e) => { if (clickable) e.currentTarget.style.background = 'transparent'; }}>
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{label}{tag}</span><Icon name="arrow-right" size={15} /></div>;
+}
+// ---- Client invoice gate: blocked (Draft) until all supplier discrepancies reconciled ----
+function projectInvoiceBlockers(p) {
+  const out = [];
+  if (typeof p.margin === 'number' && p.margin < 10) out.push({ label: `Project margin ${p.margin}% is below the 10% threshold`, sev: 'block' });
+  (p.costCentres || []).forEach((cc) => { if (cc.risk === 'CRITICAL' || cc.margin < 0) out.push({ label: `${cc.name}: margin ${cc.margin}% (${cc.risk})`, sev: 'block' }); });
+  (PROJECT_RECON[p.id] || []).forEach((d) => out.push(d));
+  return out;
+}
+function InvoiceGate({ project }) {
+  const blockers = projectInvoiceBlockers(project);
+  const blocks = blockers.filter((b) => b.sev === 'block');
+  const warns = blockers.filter((b) => b.sev === 'warn');
+  const ready = blocks.length === 0;
+  const [done, setDone] = React.useState(false);
+  React.useEffect(() => { setDone(false); }, [project.id]);
+  const accent = ready ? 'var(--success)' : 'var(--destructive)';
+  return (
+    <Panel>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="receipt" size={15} color="hsl(var(--muted-foreground))" />Client Invoice Gate</h3>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, color: `hsl(${accent})`, background: `hsl(${accent} / 0.12)`, border: `1px solid hsl(${accent} / 0.3)` }}>
+          <Icon name={ready ? 'check-circle-2' : 'lock'} size={11} />{ready ? 'Ready · Draft' : 'Blocked · Draft'}</span>
+      </div>
+      <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', lineHeight: 1.5, marginBottom: 11 }}>No client invoice is sent until every supplier cost for this job is reconciled and the margin is verified — then it generates as a <b style={{ color: 'hsl(var(--foreground))' }}>draft for review</b>.</div>
+      {blocks.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: warns.length ? 9 : 0 }}>
+        {blocks.map((b, i) => <div key={i} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: 12, color: 'hsl(var(--destructive))', fontWeight: 500 }}><Icon name="ban" size={13} style={{ flexShrink: 0, marginTop: 1 }} />{b.label}</div>)}
+      </div>}
+      {warns.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {warns.map((b, i) => <div key={i} style={{ display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: 12, color: 'hsl(var(--warning))', fontWeight: 500 }}><Icon name="alert-triangle" size={13} style={{ flexShrink: 0, marginTop: 1 }} />{b.label}</div>)}
+      </div>}
+      {ready && !done && <div style={{ display: 'flex', gap: 7, alignItems: 'center', fontSize: 12, color: 'hsl(var(--success))', fontWeight: 500 }}><Icon name="check-circle-2" size={14} />All supplier costs reconciled · margin verified.</div>}
+      <div style={{ marginTop: 12 }}>
+        {ready
+          ? (done
+            ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--success))', background: 'hsl(var(--success-subtle) / 0.6)', border: '1px solid hsl(var(--success) / 0.3)', borderRadius: 8, padding: '9px 11px' }}><Icon name="file-check-2" size={15} />Draft invoice created — ready for your review before send.</div>
+            : <Button variant="primary" icon="file-text" onClick={() => setDone(true)} style={{ width: '100%', justifyContent: 'center', background: 'hsl(var(--success))' }}>Generate Draft Invoice</Button>)
+          : <div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, width: '100%', justifyContent: 'center', height: 40, borderRadius: 8, border: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.5)', color: 'hsl(var(--muted-foreground))', fontSize: 13.5, fontWeight: 500, cursor: 'not-allowed' }}><Icon name="lock" size={15} />Generate Client Invoice</div>
+              <div style={{ fontSize: 11, color: 'hsl(var(--destructive))', marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="alert-triangle" size={12} />Blocked — resolve {blocks.length} discrepanc{blocks.length === 1 ? 'y' : 'ies'} before invoicing.</div>
+            </div>}
+      </div>
+    </Panel>
+  );
 }
 function ProjectDetail({ project }) {
   const openTickets = TICKETS.filter((t) => t.client === project.client && t.status !== 'Resolved').length;
@@ -253,13 +294,8 @@ function ProjectDetail({ project }) {
         <QuickAction label="Project Documents" tag={<UpcomingPill />} muted />
         <QuickAction label="Project Settings" />
       </Panel>
+      <InvoiceGate project={project} />
       <Panel title="Key Indicators">
-        {/* Invoice Readiness — engine output, nothing to show yet */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-          <Icon name="receipt" size={15} color="hsl(var(--muted-foreground))" />
-          <span style={{ fontSize: 13, fontWeight: 500 }}>Invoice Readiness</span><PreviewPill />
-        </div>
-        <div style={{ marginBottom: 12 }}><CalculatingCard note="The invoice-readiness engine isn't live yet." /></div>
         <Indicator icon="dollar-sign" label="Uninvoiced Amount" tag={<ReadOnlyTag />} value={<PendingDash />} />
         <Indicator icon="wrench" label="Open Service Tickets" tag={<PreviewPill />} value={<span style={{ color: 'hsl(var(--muted-foreground))' }}>{openTickets} open</span>} />
         <Indicator icon="check-circle-2" label="Pending Approvals" tag={<UpcomingPill />} value={<PendingDash />} />

@@ -16,19 +16,10 @@ function DeviceTile({ type, size = 38 }) {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
     <Icon name={ASSET_ICON[type] || 'box'} size={size * 0.5} color="hsl(var(--muted-foreground))" /></span>;
 }
-// KPI card — register counts (Preview, muted); roadmap tiles go Upcoming.
-function AsKpiCard({ title, value, sub, icon, color, preview, upcoming }) {
-  return (
-    <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}><Icon name={icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
-        <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 4px', letterSpacing: '-0.02em', color: 'hsl(var(--muted-foreground))' }}>{upcoming ? '—' : value}</div>
-        <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}>{sub}</div>
-        {upcoming ? <UpcomingPill /> : <PreviewPill />}
-      </div>
-    </div>
-  );
+// adapt an assets KPI record to shared KpiCard props (Preview / Upcoming register tiles)
+function asKpiProps(k) {
+  return { title: k.title, value: k.upcoming ? undefined : k.value, caption: k.sub, icon: k.icon, color: k.color,
+    valueSize: 24, valueMuted: true, iconOpacity: 0.6, tag: k.upcoming ? <UpcomingPill /> : <PreviewPill /> };
 }
 
 function AssetsScreen() {
@@ -69,11 +60,11 @@ function AssetsScreen() {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Button variant="outline" icon="upload">Import Assets</Button><UpcomingPill /></span>
           <Button variant="primary" icon="plus">Add Asset</Button>
         </>} />
-      <div style={{ marginBottom: 12, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
-        {ASSET_KPIS.map((k, i) => <AsKpiCard key={i} {...k} />)}
+      <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'nowrap', gap: 12 }}>
+        {ASSET_KPIS.map((k, i) => <KpiCard key={i} {...asKpiProps(k)} />)}
       </div>
-      <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-        {ASSET_KPIS2.map((k, i) => <AsKpiCard key={i} {...k} />)}
+      <div style={{ marginBottom: 18, display: 'flex', flexWrap: 'nowrap', gap: 12 }}>
+        {ASSET_KPIS2.map((k, i) => <KpiCard key={i} {...asKpiProps(k)} />)}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <SearchInput placeholder="Search assets by name, type, serial, IP, location..." value={search} onChange={setSearch} />

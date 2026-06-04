@@ -1,13 +1,10 @@
 // ETG Dashboard — Invoice Matching (Bank Feed) screen.
 const { useState: useStateMt } = React;
 
-function mtStatusStyle(s) {
-  const map = { 'Potential Match': 'active', 'Pending Review': 'warning', 'Unmatched Bank': 'draft', 'Unmatched Invoice': 'draft', 'Exception': 'overdue', 'Matched': 'complete', 'Partial Payment': 'warning', 'Ready for Reconciliation': 'complete', 'Match Rejected': 'overdue' };
-  const v = `var(--status-${map[s] || 'draft'})`;
-  return { background: `hsl(${v} / 0.13)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.30)` };
-}
+// invoice-matching status vocabulary → shared status tone
+const MT_TONE = { 'Potential Match': 'active', 'Pending Review': 'warning', 'Unmatched Bank': 'draft', 'Unmatched Invoice': 'draft', 'Exception': 'overdue', 'Matched': 'complete', 'Partial Payment': 'warning', 'Ready for Reconciliation': 'complete', 'Match Rejected': 'overdue' };
 function MtPill({ status }) {
-  return <span style={{ ...mtStatusStyle(status), display: 'inline-flex', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{status}</span>;
+  return <StatusBadge status={status} tone={MT_TONE[status] || 'draft'} compact />;
 }
 function ExTypeChip({ type }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: 'hsl(var(--destructive))', background: 'hsl(var(--destructive-subtle))', border: '1px solid hsl(var(--destructive) / 0.25)', padding: '1px 7px', borderRadius: 999, marginTop: 3 }}><Icon name="alert-triangle" size={10} />{type}</span>;
@@ -17,24 +14,87 @@ function MtConf({ conf }) {
   const c = conf >= 95 ? 'hsl(var(--success))' : conf >= 80 ? 'hsl(var(--info))' : conf >= 60 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))';
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ width: 54, height: 6, background: 'hsl(var(--muted))', borderRadius: 999 }}><span style={{ display: 'block', height: '100%', width: `${conf}%`, background: c, borderRadius: 999 }} /></span><span style={{ fontSize: 12, fontWeight: 600 }}>{conf}%</span></span>;
 }
-// KPI card — engine roll-ups (Read-only); bank-feed-dependent tiles are Preview (muted).
-function MtKpiCard({ title, value, sub, icon, color, readOnly, preview, onClick, active }) {
-  const clickable = !!onClick;
-  return (
-    <div onClick={onClick} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: preview ? 0.6 : 1 }}><Icon name={icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 4px', letterSpacing: '-0.02em', color: preview ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{value}</div>
-        <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}>{sub}</div>
-        {preview ? <PreviewPill /> : readOnly ? <ReadOnlyTag /> : null}
-      </div>
-    </div>
-  );
+
+// ---- two-layer matching chain derivations (Bank Match · PO/Job Link · Reconciliation · Next Action) ----
+const mtNoBank = (r) => r.bankAmt === '—';
+const mtNoInv = (r) => r.invAmt === '—';
+function mtBankMatch(r) {
+  if (mtNoBank(r)) return { label: 'No bank txn', tone: 'draft' };
+  if (mtNoInv(r)) return { label: 'No invoice', tone: 'draft' };
+  if (r.mismatch) return { label: 'Amount mismatch', tone: 'overdue' };
+  if (r.gstMismatch) return { label: 'GST mismatch', tone: 'medium' };
+  if (r.exType === 'Supplier mismatch') return { label: 'Supplier mismatch', tone: 'overdue' };
+  const c = r.conf;
+  if (c == null) return { label: '—', tone: 'draft' };
+  if (c >= 95) return { label: 'Strong', tone: 'complete' };
+  if (c >= 80) return { label: 'Likely', tone: 'active' };
+  if (c >= 60) return { label: 'Weak', tone: 'medium' };
+  return { label: 'Exception', tone: 'overdue' };
+}
+function mtPoLink(r) {
+  if (r.overhead) return { label: 'Overhead', tone: 'draft' };
+  if (r.po && r.job) return { label: r.split ? 'Split' : 'Linked', tone: 'complete' };
+  if (r.status === 'Exception' || r.exType) return { label: 'Needs Review', tone: 'medium' };
+  return { label: 'Missing', tone: 'overdue' };
+}
+function mtRecon(r) {
+  if (r.status === 'Match Rejected') return { label: 'Rejected', tone: 'draft' };
+  if (mtNoBank(r) || mtNoInv(r)) return { label: 'Blocked', tone: 'overdue' };
+  if (r.partial) return { label: 'Needs Review', tone: 'medium' };
+  if (r.mismatch || r.gstMismatch || r.status === 'Exception' || r.exType) return { label: 'Needs Review', tone: 'medium' };
+  const bm = mtBankMatch(r), po = mtPoLink(r);
+  const poOk = po.label === 'Linked' || po.label === 'Split';
+  if (bm.label === 'Strong' && poOk) return { label: 'Ready', tone: 'complete' };
+  if ((bm.label === 'Strong' || bm.label === 'Likely') && !poOk) return { label: 'Blocked', tone: 'overdue' }; // golden rule: strong bank ≠ ready without PO/job
+  return { label: 'Pending', tone: 'warning' };
+}
+function mtNext(r) {
+  if (mtNoInv(r)) return 'Request invoice';
+  if (mtNoBank(r)) return 'Find bank txn';
+  if (r.mismatch) return 'Resolve amount';
+  if (r.gstMismatch) return 'Review GST';
+  if (r.exType === 'Supplier mismatch') return 'Verify supplier';
+  if (r.exType === 'Possible personal expense') return 'Mark overhead';
+  const po = mtPoLink(r);
+  if (po.label === 'Missing') return 'Link job / PO';
+  if (po.label === 'Needs Review') return 'Review PO link';
+  if (mtRecon(r).label === 'Ready') return 'Confirm & reconcile';
+  return 'Manual review';
+}
+function mtReason(r) {
+  if (mtNoInv(r)) return 'No matching invoice';
+  if (mtNoBank(r)) return 'No bank transaction';
+  if (r.mismatch) return 'Amount variance flagged';
+  if (r.gstMismatch) return 'GST differs from invoice';
+  if (r.exType === 'Supplier mismatch') return 'Supplier name differs';
+  const c = r.conf || 0;
+  if (c >= 95) return 'Amount + Supplier + Date + Ref';
+  if (c >= 80) return 'Amount + Supplier · Date close';
+  if (c >= 60) return 'Amount + Supplier';
+  return 'Weak signals only';
+}
+function mtMatchLabel(r) {
+  const bm = mtBankMatch(r);
+  const map = { Strong: 'Strong Match', Likely: 'Good Match', Weak: 'Weak Match', Exception: 'Exception', 'No invoice': 'No match', 'No bank txn': 'No match' };
+  return { label: map[bm.label] || bm.label, tone: bm.tone };
+}
+function mtReconSub(r) {
+  const rc = mtRecon(r);
+  return { Ready: 'All checks pass', Blocked: 'Cannot reconcile', 'Needs Review': 'Review needed', Pending: 'Awaiting link', Rejected: 'Match rejected' }[rc.label] || '';
+}
+function ChainBadge({ label, tone, icon }) {
+  const v = `var(--status-${tone || 'draft'})`;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', background: `hsl(${v} / 0.13)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.28)` }}>{icon && <Icon name={icon} size={10} />}{label}</span>;
+}
+// adapt an invoice-matching KPI record to shared KpiCard props (Read-only roll-ups; bank-feed tiles Preview/muted)
+function mtKpiProps(k) {
+  return { title: k.title, value: k.value, caption: k.sub, icon: k.icon, color: k.color, basis: 180,
+    valueMuted: !!k.preview, iconOpacity: k.preview ? 0.6 : 1,
+    tag: k.preview ? <PreviewPill /> : k.readOnly ? <ReadOnlyTag /> : null };
 }
 
-// ---- main match table: granular 11-column ledger ----
-const MT_GRID = '78px 64px minmax(54px,1.2fr) 92px 82px 122px 76px 64px 86px 98px 58px';
+// ---- main match table: 6 grouped bands (Bank → Invoice → Bank Match → PO/Job/Project → Reconciliation → Next Action) ----
+const MT_GRID = 'minmax(150px,1fr) minmax(160px,1.1fr) 128px minmax(156px,1.15fr) 124px 138px';
 function MtSupplierTile({ name }) {
   const ini = (name || '?').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   return <span style={{ width: 26, height: 20, borderRadius: 5, background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: 'hsl(var(--muted-foreground))', flexShrink: 0 }}>{ini}</span>;
@@ -70,9 +130,9 @@ function InvoiceMatchingScreen() {
     return true;
   });
   const tabMatch = { All: () => true, 'Unmatched Bank': (r) => r.status === 'Unmatched Bank', 'Unmatched Invoices': (r) => r.status === 'Unmatched Invoice',
-    'Potential Matches': (r) => r.status === 'Potential Match', 'Pending Review': (r) => r.status === 'Pending Review', 'Exceptions': (r) => r.status === 'Exception', 'Matched': (r) => r.status === 'Matched',
-    'Ready for Reconciliation': (r) => r.status === 'Ready for Reconciliation', 'Match Rejected': (r) => r.status === 'Match Rejected' };
-  const KPI_FILTER = ['Unmatched Bank', 'Unmatched Invoices', 'Potential Matches', 'Pending Review', 'Exceptions', 'Matched'];
+    'Potential Matches': (r) => r.status === 'Potential Match', 'Needs Review': (r) => r.status === 'Pending Review', 'Exceptions': (r) => r.status === 'Exception', 'Matched': (r) => r.status === 'Matched',
+    'Ready for Reconciliation': (r) => r.status === 'Ready for Reconciliation', 'Completed': (r) => r.status === 'Completed', 'Match Rejected': (r) => r.status === 'Match Rejected' };
+  const KPI_FILTER = ['Unmatched Bank', 'Unmatched Invoices', 'Potential Matches', 'Needs Review', 'Exceptions', 'Matched'];
   const rows = rows0.filter(tabMatch[tab] || (() => true));
   const PER = parseInt(rowsPer, 10);
   const [page, setPage] = useStateMt(1);
@@ -94,10 +154,20 @@ function InvoiceMatchingScreen() {
           <Button variant="outline" icon="upload">Upload Invoice</Button>
           <Button variant="primary" icon="wand-2">Run Auto-Match</Button>
         </>} />
-      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 14 }}>
-        {MATCH_KPIS.map((k, i) => { const f = KPI_FILTER[i]; return <MtKpiCard key={i} {...k} active={tab === f} onClick={() => selectTab(tab === f ? 'All' : f)} />; })}
-        <MtKpiCard title="Missing Invoices" value="13" sub="Request Sent · $18,240.10" icon="file-x" color="red" preview />
-      </div>
+      {(() => {
+        const mkCard = (k, i, f) => <KpiCard key={i} {...mtKpiProps(k)} active={f && tab === f} onClick={f ? () => selectTab(tab === f ? 'All' : f) : undefined} />;
+        const groups = [
+          ['Input', [[MATCH_KPIS[0], 0, 'Unmatched Bank'], [MATCH_KPIS[1], 1, 'Unmatched Invoices']]],
+          ['Matching', [[MATCH_KPIS[2], 2, 'Potential Matches'], [MATCH_KPIS[3], 3, 'Needs Review'], [MATCH_KPIS[4], 4, 'Exceptions']]],
+          ['Output', [[MATCH_KPIS[5], 5, 'Matched'], [{ title: 'Missing Invoices', value: '13', sub: 'Request Sent · $18,240.10', icon: 'file-x', color: 'red', preview: true }, 99, null]]],
+        ];
+        return <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 14, marginBottom: 16, alignItems: 'stretch' }}>
+          {groups.map(([label, cards]) => <div key={label} style={{ flex: cards.length === 3 ? '3 1 0' : '2 1 0', minWidth: 0 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 8, paddingLeft: 3 }}>{label}</div>
+            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 12 }}>{cards.map(([k, i, f]) => mkCard(k, i, f))}</div>
+          </div>)}
+        </div>;
+      })()}
 
       {/* toolbar: search + 5 filters */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -129,56 +199,79 @@ function InvoiceMatchingScreen() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: 16, alignItems: 'start' }}>
         <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           <div style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: 1000 }}>
-          {/* band header row */}
-          <div style={{ display: 'grid', gridTemplateColumns: MT_GRID, borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)' }}>
-            <div style={{ ...mtTh, flexWrap: 'wrap' }}>Status<ReadOnlyTag /></div>
-            <div style={{ ...mtTh, gridColumn: '2 / 6', color: 'hsl(var(--info))', borderLeft: '1px solid hsl(var(--border))', flexWrap: 'wrap' }}><Icon name="landmark" size={13} />Bank Transaction <span style={{ fontWeight: 400, fontSize: 10 }}>(Source of Truth #1)</span><PreviewPill /></div>
-            <div style={{ ...mtTh, borderLeft: '1px solid hsl(var(--border))' }}>Supplier</div>
-            <div style={{ ...mtTh, gridColumn: '7 / 10', color: 'hsl(var(--success))' }}><Icon name="file-text" size={13} />Invoice <span style={{ fontWeight: 400, fontSize: 10 }}>(Source of Truth #2)</span></div>
-            <div style={{ ...mtTh, borderLeft: '1px solid hsl(var(--border))', flexWrap: 'wrap' }}>Match Details<ReadOnlyTag /></div>
-            <div style={{ ...mtTh }}>Actions</div>
+          <div style={{ minWidth: 1180 }}>
+          {/* grouped band header — each row reads as the matching chain */}
+          <div style={{ display: 'grid', gridTemplateColumns: MT_GRID, borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.35)' }}>
+            {[['Bank Transaction', 'Payment from bank', 'hsl(var(--info))'], ['Supplier Invoice', 'Invoice to match', 'hsl(var(--success))'], ['Bank Match', 'How well it matches', null], ['PO / Job / Project Match', 'Where it belongs', null], ['Reconciliation', 'Overall status', null], ['Next Action', 'What to do', 'hsl(var(--primary))']].map(([h, sub, c], i) =>
+              <div key={i} style={{ ...mtTh, flexDirection: 'column', alignItems: 'flex-start', gap: 1, padding: '9px 10px', borderLeft: i === 0 ? 'none' : '1px solid hsl(var(--border))' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', color: c || 'hsl(var(--foreground))' }}>{h}</span>
+                <span style={{ fontSize: 10, fontWeight: 400, color: 'hsl(var(--muted-foreground))' }}>{sub}</span>
+              </div>)}
           </div>
-          {/* sub-header row */}
-          <div style={{ display: 'grid', gridTemplateColumns: MT_GRID, borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.25)' }}>
-            <div style={{ ...mtTh, fontSize: 10 }} />
-            <div style={{ ...mtTh, fontSize: 10 }}>Date</div>
-            <div style={{ ...mtTh, fontSize: 10 }}>Description / Ref</div>
-            <div style={{ ...mtTh, fontSize: 10 }}>Account</div>
-            <div style={{ ...mtTh, fontSize: 10, justifyContent: 'flex-end' }}>Amount</div>
-            <div style={{ ...mtTh, fontSize: 10 }} />
-            <div style={{ ...mtTh, fontSize: 10 }}>Invoice #</div>
-            <div style={{ ...mtTh, fontSize: 10 }}>Date</div>
-            <div style={{ ...mtTh, fontSize: 10, justifyContent: 'flex-end' }}>Amount</div>
-            <div style={{ ...mtTh, fontSize: 10 }} />
-            <div style={{ ...mtTh, fontSize: 10 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--info) / 0.05)', fontSize: 11, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>
+            <Icon name="info" size={12} color="hsl(var(--info))" />A strong bank match only means the payment likely matches the invoice — the row stays <b style={{ color: 'hsl(var(--foreground))', fontWeight: 600 }}>blocked</b> until the PO / job / project link exists.
           </div>
           {rows.length === 0 && <div style={{ padding: '26px 12px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No items in this tab.</div>}
           {visible.map((r) => {
             const isSel = selected === r.id;
-            const noBank = r.bankAmt === '—'; const noInv = r.invAmt === '—';
+            const noBank = mtNoBank(r), noInv = mtNoInv(r);
+            const po = mtPoLink(r), rc = mtRecon(r), ml = mtMatchLabel(r);
+            const cband = r.conf == null ? 'hsl(var(--muted-foreground))' : r.conf >= 95 ? 'hsl(var(--success))' : r.conf >= 80 ? 'hsl(var(--info))' : r.conf >= 60 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))';
+            const cellBorder = '1px solid hsl(var(--border))';
+            const stop = (e) => e.stopPropagation();
             return <div key={r.id} onClick={() => setSelected(r.id)} style={{ display: 'grid', gridTemplateColumns: MT_GRID, borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent', alignItems: 'stretch' }}>
-              {/* 1 status */}
-              <div style={{ ...mtTd }}><MtPill status={r.status} />{r.exType && <ExTypeChip type={r.exType} />}{r.reason && <div style={{ fontSize: 9.5, color: 'hsl(var(--destructive))', marginTop: 3, lineHeight: 1.3 }}>{r.reason}</div>}</div>
-              {/* 2-5 bank (or collapse) */}
-              {noBank ? <div style={{ ...mtTd, gridColumn: '2 / 6', color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', opacity: 0.7 }}>No bank transaction</div> : <>
-                <div style={{ ...mtTd, color: 'hsl(var(--muted-foreground))' }}>{r.bankDate}</div>
-                <div style={{ ...mtTd, minWidth: 0 }}><span style={{ fontWeight: 600, color: 'hsl(var(--muted-foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.bankDesc}</span><span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="lock" size={9} /><span style={{ fontFamily: 'var(--font-mono)' }}>{r.bankRef}</span></span></div>
-                <div style={{ ...mtTd, color: 'hsl(var(--muted-foreground))', fontSize: 11 }}>{r.account}</div>
-                <div style={{ ...mtTd, alignItems: 'flex-end', fontWeight: 700, color: 'hsl(var(--muted-foreground))' }}>{r.bankAmt}</div>
-              </>}
-              {/* 6 supplier */}
-              <div style={{ ...mtTd, flexDirection: 'row', alignItems: 'center', gap: 7 }}><MtSupplierTile name={r.supplier} /><span style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.supplier}</span></div>
-              {/* 7-9 invoice (or collapse) */}
-              {noInv ? <div style={{ ...mtTd, gridColumn: '7 / 10', color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', opacity: 0.7 }}>No invoice — {r.action === 'request' ? 'request from supplier' : 'awaiting'}</div> : <>
-                <div style={{ ...mtTd, color: 'hsl(var(--primary))', fontWeight: 600 }}>{r.inv}</div>
-                <div style={{ ...mtTd, color: 'hsl(var(--muted-foreground))' }}>{r.invDate}</div>
-                <div style={{ ...mtTd, alignItems: 'flex-end', fontWeight: 700, color: r.mismatch ? 'hsl(var(--destructive))' : 'inherit' }}>{r.invAmt}{r.split && <span style={{ fontSize: 9.5, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}>Split · 2</span>}{r.partial && <span style={{ fontSize: 9.5, fontWeight: 500, color: 'hsl(var(--warning))' }}>Partial</span>}</div>
-              </>}
-              {/* 10 match */}
-              <div style={{ ...mtTd }}><MtConf conf={r.conf} /></div>
-              {/* 11 actions */}
-              <div style={{ ...mtTd, flexDirection: 'row', alignItems: 'center' }}><MtRowActions r={r} onStatus={setStatus} /></div>
+              {/* 1 · Bank Transaction */}
+              <div style={{ ...mtTd, gap: 1 }}>
+                {noBank ? <span style={{ color: 'hsl(var(--muted-foreground))', fontStyle: 'italic', fontSize: 11.5 }}>No bank transaction</span> : <React.Fragment>
+                  <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{r.bankDate}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{r.account}</span>
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'hsl(var(--muted-foreground))' }}>Ref: {r.bankRef}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 800, marginTop: 1 }}>{r.bankAmt}</span>
+                </React.Fragment>}
+              </div>
+              {/* 2 · Supplier Invoice */}
+              <div style={{ ...mtTd, gap: 1, borderLeft: cellBorder }}>
+                {noInv ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--destructive))' }}><Icon name="file-x" size={12} />Invoice not found</span><span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{r.supplier} · request from supplier</span></span> : <React.Fragment>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.supplier}</span>
+                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'hsl(var(--primary))', fontWeight: 600 }}>{r.inv}</span>
+                  <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{r.invDate}</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, marginTop: 1, color: r.mismatch ? 'hsl(var(--destructive))' : 'inherit' }}>{r.invAmt}<span style={{ fontSize: 10, fontWeight: 500, color: 'hsl(var(--muted-foreground))' }}> (GST {r.invGst || '—'})</span></span>
+                </React.Fragment>}
+              </div>
+              {/* 3 · Bank Match */}
+              <div style={{ ...mtTd, gap: 4, borderLeft: cellBorder }}>
+                {r.conf == null ? <span style={{ fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>No match</span> : <React.Fragment>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: cband, letterSpacing: '-0.01em' }}>{r.conf}%</span>
+                  <ChainBadge {...ml} />
+                  <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', lineHeight: 1.25 }}>{mtReason(r)}</span>
+                </React.Fragment>}
+              </div>
+              {/* 4 · PO / Job / Project Match */}
+              <div style={{ ...mtTd, gap: 2, borderLeft: cellBorder }}>
+                {r.po ? <React.Fragment>
+                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'hsl(var(--primary))', fontWeight: 600 }}>{r.po}</span>
+                  {r.job && <span style={{ fontSize: 11.5, fontWeight: 600 }}><span style={{ fontFamily: 'var(--font-mono)' }}>{r.job}</span>{r.jobName ? ' · ' + r.jobName.split(' · ')[0] : ''}</span>}
+                  {r.proj && r.proj !== '—' && <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{r.proj}</span>}
+                  <div style={{ marginTop: 2 }}><ChainBadge {...po} icon="briefcase" /></div>
+                </React.Fragment> : po.label === 'Overhead' ? <React.Fragment>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>Overhead · No PO</span>
+                  <div style={{ marginTop: 2 }}><ChainBadge {...po} icon="layers" /></div>
+                </React.Fragment> : <React.Fragment>
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>No job linked</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--warning))' }}>Link job / project required</span>
+                  <div style={{ marginTop: 2 }}><ChainBadge {...po} icon="briefcase" /></div>
+                </React.Fragment>}
+              </div>
+              {/* 5 · Reconciliation */}
+              <div style={{ ...mtTd, gap: 4, borderLeft: cellBorder }}>
+                <ChainBadge {...rc} />
+                <span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))' }}>{mtReconSub(r)}</span>
+              </div>
+              {/* 6 · Next Action */}
+              <div style={{ ...mtTd, flexDirection: 'row', alignItems: 'center', gap: 0, borderLeft: cellBorder }}>
+                <button onClick={stop} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, border: '1px solid hsl(var(--input))', borderRight: 'none', borderRadius: '7px 0 0 7px', background: rc.label === 'Ready' ? 'hsl(var(--primary))' : 'hsl(var(--card))', color: rc.label === 'Ready' ? '#fff' : 'hsl(var(--primary))', padding: '6px 8px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', lineHeight: 1.2 }}>{mtNext(r)}</button>
+                <button onClick={stop} aria-label="More actions" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, border: '1px solid hsl(var(--input))', borderRadius: '0 7px 7px 0', background: rc.label === 'Ready' ? 'hsl(var(--primary))' : 'hsl(var(--card))', color: rc.label === 'Ready' ? '#fff' : 'hsl(var(--muted-foreground))', padding: '6px 0', cursor: 'pointer', alignSelf: 'stretch' }}><Icon name="chevron-down" size={13} /></button>
+              </div>
             </div>;
           })}
           </div>
@@ -252,7 +345,7 @@ function MatchDetail({ row: r, onStatus }) {
   const [splitMsg, setSplitMsg] = React.useState(false);
   const [dtab, setDtab] = React.useState('Match Overview');
   React.useEffect(() => { setSplitMsg(false); setDtab('Match Overview'); }, [r.id]);
-  const poFound = canConfirm && !r.mismatch;
+  const poFound = canConfirm && !!r.po && !!r.job;
   const oA = dtab === 'Match Overview', oBank = oA || dtab === 'Bank Transaction', oSup = oA || dtab === 'Supplier Invoice', oHist = dtab === 'History';
   return (
     <div style={{ position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -317,8 +410,11 @@ function MatchDetail({ row: r, onStatus }) {
             <div style={{ padding: '10px 12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}><Icon name="briefcase" size={13} color={poFound ? 'hsl(var(--success))' : 'hsl(var(--warning))'} /><span style={{ fontSize: 12, fontWeight: 700 }}>Job / PO Match</span></div>
               {poFound ? <React.Fragment>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}><IdChip id="PO-001256" /></div>
-                <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>FJ-001052</span> — CCTV Upgrade · ABC Corporate — Level 1</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}><IdChip id={r.po} /></div>
+                <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}><span style={{ color: 'hsl(var(--primary))', fontFamily: 'var(--font-mono)' }}>{r.job}</span> — {r.jobName || '—'}</div>
+                {[['Project / Site', r.proj], ['Cost Centre', r.cc], ['Category', r.cat]].filter(([, v]) => v && v !== '—').map(([k, v], i) =>
+                  <div key={i} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, padding: '2px 0', fontSize: 11 }}><span style={{ color: 'hsl(var(--muted-foreground))' }}>{k}</span><span style={{ fontWeight: 600, textAlign: 'right' }}>{v}</span></div>)}
+                <div style={{ height: 1, background: 'hsl(var(--border))', margin: '6px 0' }} />
                 {[['PO extracted', true], ['Job found', true], ['Site / customer matched', true], ['Line items assigned', true], ['Cost added to job costing', false]].map(([l, ok], i) =>
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '2px 0', fontSize: 11.5 }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name={ok ? 'check-circle-2' : 'circle'} size={12} color={ok ? 'hsl(var(--success))' : 'hsl(var(--muted-foreground))'} />{l}</span>{!ok && <UpcomingPill compact />}</div>)}
               </React.Fragment> : <React.Fragment>
@@ -358,7 +454,7 @@ function MatchDetail({ row: r, onStatus }) {
       <Panel pad={15}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 9 }}>Verification Checklist <span style={{ fontSize: 11, fontWeight: 400, color: 'hsl(var(--muted-foreground))' }}>(Must be completed before approval)</span></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 14px' }}>
-          {[['Bank transaction exists', 'done'], ['Invoice exists', 'done'], ['Amounts match', r.mismatch ? 'pending' : 'done'], ['GST verified', r.gstMismatch ? 'pending' : 'done'], ['Supplier verified', 'done'], ['Line items reviewed', 'pending'], ['Quantities verified', 'pending'], ['Project allocated', 'pending'], ['Cost centre allocated', 'not-started'], ['Duplicate checked', 'done']].map(([label, st], i) => {
+          {[['Bank transaction exists', 'done'], ['Invoice exists', 'done'], ['Amounts match', r.mismatch ? 'pending' : 'done'], ['Manually verified', 'done'], ['GST verified', r.gstMismatch ? 'pending' : 'done'], ['Supplier verified', 'pending'], ['Line items reviewed', 'pending'], ['Quantities verified', 'pending'], ['Project allocated', 'done'], ['Cost centre allocated', 'pending'], ['Duplicate checked', 'pending'], ['Payment method valid', 'pending'], ['PO / Reference verified', 'pending'], ['Margin impact reviewed', 'pending'], ['Notes added', 'pending']].map(([label, st], i) => {
             const m = { done: ['check-circle-2', 'hsl(var(--success))'], pending: ['clock', 'hsl(var(--warning))'], 'not-started': ['circle', 'hsl(var(--muted-foreground))'] };
             const [ic, c] = m[st];
             return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0', fontSize: 11.5 }}><Icon name={ic} size={13} color={c} style={{ flexShrink: 0 }} />{label}</div>;

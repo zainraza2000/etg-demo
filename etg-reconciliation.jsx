@@ -1,13 +1,10 @@
 // ETG Dashboard — Procurement & Financial Reconciliation screen.
 const { useState: useStateRc } = React;
 
-function rcStatusStyle(s) {
-  const map = { 'Pending Verification': 'warning', 'Potential Match': 'active', 'Exception': 'overdue', 'Verified': 'complete', 'Approved': 'complete' };
-  const v = `var(--status-${map[s] || 'draft'})`;
-  return { background: `hsl(${v} / 0.13)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.30)` };
-}
+// reconciliation status vocabulary → shared status tone
+const RC_TONE = { 'Pending Verification': 'warning', 'Potential Match': 'active', 'Exception': 'overdue', 'Verified': 'complete', 'Approved': 'complete' };
 function RcPill({ status }) {
-  return <span style={{ ...rcStatusStyle(status), display: 'inline-flex', padding: '2px 9px', borderRadius: 999, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{status}</span>;
+  return <StatusBadge status={status} tone={RC_TONE[status] || 'draft'} compact />;
 }
 function SupplierTile({ name, size = 30 }) {
   const ini = name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -22,19 +19,10 @@ function PriorityDot({ priority }) {
   const c = { High: 'hsl(var(--destructive))', Medium: 'hsl(var(--warning))', Low: 'hsl(var(--success))' }[priority];
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: c }} />{priority}</span>;
 }
-// KPI card — real tallies whose cost-rollup feed isn't connected (Preview, muted).
-function RcKpiCard({ title, value, sub, icon, color }) {
-  return (
-    <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6 }}><Icon name={icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
-        <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 4px', letterSpacing: '-0.02em', color: 'hsl(var(--muted-foreground))' }}>{value}</div>
-        <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}>{sub}</div>
-        <PreviewPill />
-      </div>
-    </div>
-  );
+// adapt a reconciliation KPI record to shared KpiCard props (Preview tallies, cost feed not wired)
+function rcKpiProps(k) {
+  return { title: k.title, value: k.value, caption: k.sub, icon: k.icon, color: k.color,
+    valueSize: 24, valueMuted: true, iconOpacity: 0.6, basis: 180, tag: <PreviewPill /> };
 }
 
 function ReconciliationScreen() {
@@ -62,9 +50,9 @@ function ReconciliationScreen() {
             <span style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>Layered correction — never edits the original</span>
           </span>
         </>} />
-      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 14 }}>
-        {RECON_KPIS.map((k, i) => <RcKpiCard key={i} {...k} />)}
-        <RcKpiCard title="Unallocated Costs" value="13" sub="$18,240.10 — View all" icon="circle-slash" color="slate" />
+      <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'nowrap', gap: 12 }}>
+        {RECON_KPIS.map((k, i) => <KpiCard key={i} {...rcKpiProps(k)} />)}
+        <KpiCard {...rcKpiProps({ title: 'Unallocated Costs', value: '13', sub: '$18,240.10 — View all', icon: 'circle-slash', color: 'slate' })} />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderBottom: '1px solid hsl(var(--border))', marginBottom: 14, flexWrap: 'wrap' }}>

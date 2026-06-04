@@ -56,18 +56,32 @@ function JobBlock({ job, selected, onClick }) {
   );
 }
 
-// Calendar KPI card — real system counts get a Read-only tag; not-yet-derived ones go Upcoming (—).
-function CalKpiCard({ title, value, sub, icon, color, readOnly, upcoming }) {
-  return (
-    <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: upcoming ? 0.55 : 1 }}><Icon name={icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 6px', letterSpacing: '-0.02em', color: upcoming ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{upcoming ? '—' : value}</div>
-        {upcoming ? <UpcomingPill /> : readOnly ? <ReadOnlyTag /> : <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: 'pointer' }}>{sub}</div>}
-      </div>
-    </div>
-  );
+
+// ---- Unscheduled queue + Schedule Gate model -------------------------------
+// Each queued visit carries its gate outcome, evaluated BEFORE it can land on
+// the board: ok = ALLOWED (writes) · warn = WARN & PROCEED · override =
+// REQUIRES_OVERRIDE (reason) · block = BLOCKED (hard stop → Needs Review).
+const CAL_QUEUE = [
+  { id: 'q1', prio: 'High', title: 'CCTV Upgrade', client: 'ABC Corporate', sev: 'block', why: 'Parts missing — 1× NVR-8CH unit not allocated', next: 'Order missing parts', time: '8:00 AM – 12:00 PM', loc: 'Level 1', addr: '14 George St, Sydney NSW', skills: ['CCTV'], licences: ['Security Licence 1A'], estHours: 4, siteAccess: 'Confirmed', sd: 'SD-000421', fj: 'FJ-000421', fromSt: 'ST-000099' },
+  { id: 'q2', prio: 'High', title: 'Network Upgrade', client: 'XYZ Building', sev: 'block', why: 'Site access not confirmed with building manager', next: 'Confirm site access', time: '9:00 AM – 2:00 PM', loc: 'Level 3', addr: '5 Market St, Sydney NSW', skills: ['Networking'], licences: [], estHours: 5, siteAccess: 'Not confirmed', sd: 'SD-000422', fj: 'FJ-000422' },
+  { id: 'q3', prio: 'Medium', title: 'Switchboard Install', client: 'BuildCo Group', sev: 'override', why: 'Assigned technician lacks A-Grade electrical licence', next: 'Assign licensed tech or override', time: '7:30 AM – 3:30 PM', loc: 'Warehouse', addr: '88 Industrial Dr, Adelaide SA', skills: ['Electrical'], licences: ['Electrical (A-Grade)'], estHours: 8, siteAccess: 'Confirmed', sd: 'SD-000423', fj: 'FJ-000423' },
+  { id: 'q4', prio: 'Medium', title: 'Lighting Audit', client: 'Retail Group', sev: 'warn', why: 'Overtime risk — visit likely exceeds standard hours', next: 'Approve overtime', time: '1:00 PM – 6:30 PM', loc: 'Store 47', addr: '200 Hay St, Perth WA', skills: ['Electrical'], licences: [], estHours: 5.5, siteAccess: 'Confirmed', sd: 'SD-000424', fj: 'FJ-000424' },
+  { id: 'q5', prio: 'Low', title: 'Site Inspection', client: "St Mary's College", sev: 'override', why: 'Scope unconfirmed — needs review before scheduling', next: 'Confirm scope with client', time: '10:00 AM – 12:00 PM', loc: 'Main Campus', addr: '1 College Rd, Brisbane QLD', skills: [], licences: [], estHours: 2, siteAccess: 'Confirmed', sd: 'SD-000425', fj: 'FJ-000425' },
+  { id: 'q6', prio: 'Low', title: 'Quote Follow Up', client: 'Fusion Manufacturing', sev: 'ok', why: 'All readiness checks pass — ready to schedule', next: 'Schedule', time: '11:30 AM – 1:00 PM', loc: 'Head Office', addr: '12 Factory Ln, Adelaide SA', skills: [], licences: [], estHours: 1.5, siteAccess: 'Confirmed', sd: 'SD-000426', fj: 'FJ-000426' },
+];
+const GATE_OUTCOME = {
+  block: { code: 'BLOCKED', icon: 'ban', raw: 'var(--destructive)', title: 'Blocked — cannot schedule', body: 'A hard blocker stops this visit from being placed. Resolve it, or send the visit to Needs Review.', verb: 'Send to Needs Review' },
+  override: { code: 'REQUIRES OVERRIDE', icon: 'shield-alert', raw: 'var(--primary)', title: 'Override required', body: 'You can place this visit, but the gate needs a manager override with a reason.', verb: 'Override & Schedule' },
+  warn: { code: 'WARN & PROCEED', icon: 'alert-triangle', raw: 'var(--warning)', title: 'Warning — proceed with caution', body: 'The gate flagged a risk. You can proceed and place the visit.', verb: 'Proceed & Schedule' },
+  ok: { code: 'ALLOWED', icon: 'check-circle-2', raw: 'var(--success)', title: 'Ready to schedule', body: 'All readiness checks pass. The visit can be placed straight onto the board.', verb: 'Schedule' },
+};
+// Adapt a committed placement → a JobBlock/JobDetail-shaped job object.
+function placedToJob(p, techName) {
+  const o = p.item;
+  const readiness = p.override ? 'Needs Review' : p.warned ? 'At Risk' : 'Ready';
+  return { ...o, day: p.di, prio: o.prio, tech: techName, state: 'Planned', readiness,
+    blocker: p.override ? `Override: ${o.why}` : p.warned ? o.why : null, placed: true,
+    skills: o.skills.length ? o.skills : ['—'], licences: o.licences.length ? o.licences : ['—'] };
 }
 
 function CalendarScreen() {
@@ -75,10 +89,31 @@ function CalendarScreen() {
   const [worker, setWorker] = useStateCal(null); // technician index for drill-down
   const [kpiFilter, setKpiFilter] = useStateCal(null);
   const [calView, setCalView] = useStateCal('Week');
-  const [gateJob, setGateJob] = useStateCal(null); // {title, gate} for queue scheduling
+  const [gateJob, setGateJob] = useStateCal(null); // (legacy, unused)
   const [calSearch, setCalSearch] = useStateCal('');
   const [moreFilter, setMoreFilter] = useStateCal('All');
   const [newVisitTech, setNewVisitTech] = useStateCal(null);
+  const [queue, setQueue] = useStateCal(CAL_QUEUE);
+  const [placements, setPlacements] = useStateCal([]);
+  const [needsReview, setNeedsReview] = useStateCal([]);
+  const [dragId, setDragId] = useStateCal(null);
+  const [dropHover, setDropHover] = useStateCal(null);
+  const [dropGate, setDropGate] = useStateCal(null); // {item, ti, di} pending gate decision
+  const [toast, setToast] = useStateCal(null);
+  function flash(msg) { setToast(msg); setTimeout(() => setToast(null), 2600); }
+  function commitPlacement(item, ti, di, opts) {
+    setPlacements((p) => [...p.filter((x) => x.id !== item.id), { id: item.id, ti, di, item, ...(opts || {}) }]);
+    setQueue((q) => q.filter((x) => x.id !== item.id));
+    setNeedsReview((r) => r.filter((x) => x.id !== item.id));
+  }
+  function sendToReview(item) { setNeedsReview((r) => r.find((x) => x.id === item.id) ? r : [...r, item]); setQueue((q) => q.filter((x) => x.id !== item.id)); }
+  function handleDrop(ti, di) {
+    const id = dragId; setDropHover(null); setDragId(null);
+    const item = queue.find((q) => q.id === id) || needsReview.find((q) => q.id === id);
+    if (!item) return;
+    if (item.sev === 'ok') { commitPlacement(item, ti, di); flash(`${item.title} scheduled to ${TECHS[ti].name} — gate ALLOWED`); }
+    else setDropGate({ item, ti, di });
+  }
   const CELL = 168;
   if (newVisitTech !== null) return <NewVisitForm prefill={{ techIndex: newVisitTech }} techIndex={newVisitTech} onCancel={() => setNewVisitTech(null)} onCreate={() => setNewVisitTech(null)} />;
   // view + filter helpers (Day narrows to today's column; search/KPI/More narrow visible jobs)
@@ -99,6 +134,8 @@ function CalendarScreen() {
   let selJob = null;
   if (sel && sel.indexOf('u-') === 0) {
     const di = parseInt(sel.slice(2), 10); selJob = CAL_UNASSIGNED.find((j) => j.day === di);
+  } else if (sel && sel.indexOf('p-') === 0) {
+    const p = placements.find((x) => 'p-' + x.id === sel); if (p) selJob = placedToJob(p, TECHS[p.ti] && TECHS[p.ti].name);
   } else if (sel) {
     const [ti, di] = sel.split('-').map(Number); selJob = (CAL_JOBS[ti] || []).find((j) => j.day === di);
     if (selJob) selJob = { ...selJob, tech: TECHS[ti] && TECHS[ti].name };
@@ -133,10 +170,10 @@ function CalendarScreen() {
           <Button variant="primary" icon="plus" onClick={() => setNewVisitTech(0)}>New Visit</Button>
         </div>
       </div>
-      {/* 8 clickable KPI filters */}
-      <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 11 }}>
+      {/* 9 clickable KPI filters — single row */}
+      <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'nowrap', gap: 10 }}>
         {CMD_KPIS.map((k) => { const on = kpiFilter === k.key;
-          return <div key={k.key} onClick={() => setKpiFilter(on ? null : k.key)} style={{ background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${on ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 11, padding: 12, boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}>
+          return <div key={k.key} onClick={() => setKpiFilter(on ? null : k.key)} style={{ flex: '1 1 0', minWidth: 0, background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${on ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 11, padding: 12, boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ width: 32, height: 32, borderRadius: 8, background: KPI_COLORS[k.color], display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name={k.icon} size={16} color="#fff" /></span>
               <Icon name="lock" size={11} color="hsl(var(--muted-foreground))" />
@@ -172,24 +209,51 @@ function CalendarScreen() {
         <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))', cursor: 'pointer' }}><Icon name="list-checks" size={14} />Gate Rules</span>
       </div>
 
-      {/* Unscheduled Queue tray */}
+      {/* Unscheduled Queue tray — drag a card onto a tech/day cell to run the Schedule Gate */}
       <div style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 10, padding: '12px 14px', marginBottom: 14, boxShadow: 'var(--shadow-sm)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <Icon name="inbox" size={16} color="hsl(var(--primary))" /><span style={{ fontSize: 13, fontWeight: 700 }}>Unscheduled Queue</span><span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>6 jobs · drag onto the grid to schedule</span>
+          <Icon name="inbox" size={16} color="hsl(var(--primary))" /><span style={{ fontSize: 13, fontWeight: 700 }}>Unscheduled Queue</span><span style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>{queue.length} job{queue.length === 1 ? '' : 's'} · drag a card onto a technician/day to schedule</span>
           <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))', cursor: 'pointer' }}>View all queue ›</span>
         </div>
-        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
-          {[['High', 'CCTV Upgrade', 'ABC Corporate', 'Blocked: Parts missing', 'block'], ['High', 'Network Upgrade', 'XYZ Building', 'Blocked: Access issue', 'block'], ['Medium', 'Switchboard Install', 'BuildCo Group', 'Warn: Skills gap', 'warn'], ['Medium', 'Lighting Audit', 'Retail Group', 'Warn: Overtime risk', 'warn'], ['Low', 'Site Inspection', "St Mary's College", 'Needs review', 'review'], ['Low', 'Quote Follow Up', 'Fusion Manufacturing', 'Unassigned', 'review']].map(([prio, title, client, why, sev], i) => {
-            const pc = prio === 'High' ? 'hsl(var(--destructive))' : prio === 'Medium' ? 'hsl(var(--warning))' : 'hsl(var(--success))';
-            const wc = sev === 'block' ? 'hsl(var(--destructive))' : sev === 'warn' ? 'hsl(var(--warning))' : 'hsl(var(--muted-foreground))';
-            return <div key={i} onClick={() => setGateJob({ title, client, why, sev })} style={{ minWidth: 188, flexShrink: 0, border: '1px solid hsl(var(--border))', borderLeft: `3px solid ${pc}`, borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: 'hsl(var(--card))' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: pc }} /><span style={{ fontSize: 10, fontWeight: 700, color: pc }}>{prio}</span></div>
-              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{title}</div>
-              <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{client}</div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600, color: wc, marginTop: 5 }}><Icon name={sev === 'block' ? 'ban' : sev === 'warn' ? 'alert-triangle' : 'help-circle'} size={11} />{why}</div>
-            </div>;
+        {queue.length === 0 && <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', padding: '6px 2px', display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="check-circle-2" size={15} color="hsl(var(--success))" />Queue cleared — every visit has been scheduled or sent to review.</div>}
+        {queue.length > 0 && <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4, alignItems: 'stretch' }}>
+          {[['Blocked', 'block', 'var(--destructive)'], ['At Risk', 'warn', 'var(--warning)'], ['Needs Review', 'override', 'var(--primary)'], ['Ready', 'ok', 'var(--success)']].map(([label, sev, raw]) => {
+            const items = queue.filter((q) => q.sev === sev);
+            if (!items.length) return null;
+            return <React.Fragment key={sev}>
+              {/* inline group divider — keeps severity context in a single horizontal slider */}
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, flexShrink: 0, paddingLeft: 10, paddingRight: 2, borderLeft: `2px solid hsl(${raw} / 0.35)` }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: `hsl(${raw})` }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: `hsl(${raw})`, whiteSpace: 'nowrap' }}>{label}</span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{items.length}</span>
+              </div>
+              {items.map((item) => {
+                const pc = item.prio === 'High' ? 'hsl(var(--destructive))' : item.prio === 'Medium' ? 'hsl(var(--warning))' : 'hsl(var(--success))';
+                const g = GATE_OUTCOME[item.sev];
+                return <div key={item.id} draggable onDragStart={(e) => { setDragId(item.id); e.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => { setDragId(null); setDropHover(null); }}
+                  onClick={() => setDropGate({ item, ti: null, di: null })}
+                  style={{ minWidth: 196, flexShrink: 0, border: '1px solid hsl(var(--border))', borderLeft: `3px solid ${pc}`, borderRadius: 8, padding: '8px 10px', cursor: 'grab', background: 'hsl(var(--card))', opacity: dragId === item.id ? 0.45 : 1, boxShadow: dragId === item.id ? 'var(--shadow-md)' : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}><Icon name="grip-vertical" size={12} color="hsl(var(--muted-foreground))" /><span style={{ width: 6, height: 6, borderRadius: '50%', background: pc }} /><span style={{ fontSize: 10, fontWeight: 700, color: pc }}>{item.prio}</span></div>
+                  <div style={{ fontSize: 12.5, fontWeight: 600 }}>{item.title}</div>
+                  <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{item.client}</div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: '0.02em', color: `hsl(${g.raw})`, background: `hsl(${g.raw} / 0.12)`, border: `1px solid hsl(${g.raw} / 0.3)`, padding: '1px 7px', borderRadius: 999, marginTop: 6 }}><Icon name={g.icon} size={10} />{g.code}</div>
+                  <div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))', marginTop: 4, lineHeight: 1.3 }}>{item.why}</div>
+                </div>;
+              })}
+            </React.Fragment>;
           })}
-        </div>
+        </div>}
+        {needsReview.length > 0 && <div style={{ marginTop: 12, borderTop: '1px dashed hsl(var(--border))', paddingTop: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}><Icon name="search-check" size={15} color="hsl(var(--warning))" /><span style={{ fontSize: 12.5, fontWeight: 700, color: 'hsl(28 80% 38%)' }}>Needs Review</span><span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{needsReview.length} blocked visit{needsReview.length === 1 ? '' : 's'} awaiting resolution</span></div>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto' }}>
+            {needsReview.map((item) => <div key={item.id} draggable onDragStart={(e) => { setDragId(item.id); e.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => { setDragId(null); setDropHover(null); }}
+              style={{ minWidth: 196, flexShrink: 0, border: '1px solid hsl(var(--warning) / 0.4)', borderLeft: '3px solid hsl(var(--warning))', borderRadius: 8, padding: '8px 10px', cursor: 'grab', background: 'hsl(var(--warning-subtle) / 0.4)' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{item.title}</div>
+              <div style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{item.client}</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--warning))', marginTop: 5 }}><Icon name="alert-triangle" size={11} />{item.next}</div>
+            </div>)}
+          </div>
+        </div>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 300px', gap: 16, alignItems: 'start' }}>
@@ -233,8 +297,17 @@ function CalendarScreen() {
                   {GD.map((di) => {
                     const job = (CAL_JOBS[ti] || []).find((j) => j.day === di);
                     const vis = jobVisible(job, tech.name);
-                    return <div key={di} style={{ borderLeft: '1px solid hsl(var(--border))', padding: 5 }}>
-                      {job && vis && <JobBlock job={job} selected={sel === `${ti}-${di}`} onClick={() => setSel(`${ti}-${di}`)} />}</div>;
+                    const placed = placements.find((p) => p.ti === ti && p.di === di);
+                    const key = `${ti}-${di}`; const isHover = dropHover === key;
+                    return <div key={di}
+                      onDragOver={dragId ? (e) => { e.preventDefault(); if (dropHover !== key) setDropHover(key); } : undefined}
+                      onDragLeave={dragId ? () => { if (dropHover === key) setDropHover(null); } : undefined}
+                      onDrop={dragId ? () => handleDrop(ti, di) : undefined}
+                      style={{ borderLeft: '1px solid hsl(var(--border))', padding: 5, display: 'flex', flexDirection: 'column', gap: 5,
+                        background: isHover ? 'hsl(var(--primary) / 0.08)' : 'transparent', outline: isHover ? '2px dashed hsl(var(--primary))' : 'none', outlineOffset: '-3px', transition: 'background .1s' }}>
+                      {job && vis && <JobBlock job={job} selected={sel === key} onClick={() => setSel(key)} />}
+                      {placed && <JobBlock job={placedToJob(placed, tech.name)} selected={sel === 'p-' + placed.id} onClick={() => setSel('p-' + placed.id)} />}
+                    </div>;
                   })}
                 </div>
               ))}
@@ -279,7 +352,10 @@ function CalendarScreen() {
         <JobDetail job={selJob} />
       </div>
 
-      {gateJob && <CalGateModal job={gateJob} onClose={() => setGateJob(null)} />}
+      {dropGate && <CalGateModal gate={dropGate} onClose={() => setDropGate(null)}
+        onCommit={(opts) => { commitPlacement(dropGate.item, dropGate.ti, dropGate.di, opts); const g = GATE_OUTCOME[dropGate.item.sev]; flash(`${dropGate.item.title} scheduled to ${TECHS[dropGate.ti].name} — gate ${g.code}`); setDropGate(null); }}
+        onReview={() => { sendToReview(dropGate.item); flash(`${dropGate.item.title} sent to Needs Review`); setDropGate(null); }} />}
+      {toast && <div style={{ position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)', zIndex: 1300, background: 'hsl(var(--sidebar))', color: '#fff', borderRadius: 10, padding: '11px 16px', boxShadow: 'var(--shadow-xl)', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 9 }}><Icon name="check-circle-2" size={16} color="hsl(var(--success))" />{toast}</div>}
     </div>
   );
 }
@@ -475,32 +551,46 @@ function CalJobsList({ kpiFilter }) {
     </table>
   </div>;
 }
-function CalGateModal({ job, onClose }) {
-  const map = { block: ['ban', 'hsl(var(--destructive))', 'Blocked — cannot schedule', 'Resolve the blocker before this visit can be placed on the board.', false],
-    warn: ['alert-triangle', 'hsl(var(--warning))', 'Warning — proceed with override', 'You can schedule this visit, but the scheduling engine flagged a risk.', true],
-    review: ['help-circle', 'hsl(var(--muted-foreground))', 'Needs review', 'Assign a technician and confirm readiness to schedule.', true] };
-  const [ic, c, title, body, canProceed] = map[job.sev] || map.review;
+function CalGateModal({ gate, onClose, onCommit, onReview }) {
+  const { item, ti, di } = gate;
+  const g = GATE_OUTCOME[item.sev];
+  const [reason, setReason] = React.useState('');
+  const hasTarget = ti != null;
+  const needsReason = item.sev === 'override';
+  const isBlock = item.sev === 'block';
+  const [authority, setAuthority] = React.useState('');
+  const canCommit = hasTarget && !isBlock && (!needsReason || (reason.trim().length > 0 && authority));
+  const targetLabel = hasTarget ? `${TECHS[ti].name} · ${(CAL_DAYS[di] || '').replace(/^(\w+) /, '$1, ')}` : null;
   return <React.Fragment>
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'hsl(222 47% 11% / 0.4)', zIndex: 950 }} />
-    <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 420, maxWidth: '92vw', background: 'hsl(var(--card))', borderRadius: 14, boxShadow: 'var(--shadow-xl)', zIndex: 951, overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 440, maxWidth: '92vw', background: 'hsl(var(--card))', borderRadius: 14, boxShadow: 'var(--shadow-xl)', zIndex: 951, overflow: 'hidden' }}>
       <div style={{ padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'hsl(var(--success))' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'hsl(var(--success))' }} />Scheduling Gate · Live</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'hsl(var(--success))' }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: 'hsl(var(--success))' }} />Schedule Gate · Live</span>
           <button onClick={onClose} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', cursor: 'pointer', color: 'hsl(var(--muted-foreground))', display: 'inline-flex' }}><Icon name="x" size={17} /></button>
         </div>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>{job.title}</div>
-        <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginBottom: 13 }}>{job.client} · scheduling onto the board</div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: `${c.replace(')', ' / 0.1)')}`, border: `1px solid ${c.replace(')', ' / 0.3)')}`, borderRadius: 10, padding: '12px 14px' }}>
-          <Icon name={ic} size={18} color={c} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div><div style={{ fontSize: 13.5, fontWeight: 600, color: c }}>{title}</div><div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>{job.why} — {body}</div></div>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>{item.title}</div>
+        <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginBottom: 13 }}>{item.client}{targetLabel ? <span> · scheduling onto <b style={{ color: 'hsl(var(--foreground))' }}>{targetLabel}</b></span> : ' · in the queue'}</div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: `hsl(${g.raw} / 0.1)`, border: `1px solid hsl(${g.raw} / 0.3)`, borderRadius: 10, padding: '12px 14px' }}>
+          <Icon name={g.icon} size={18} color={`hsl(${g.raw})`} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div><div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: `hsl(${g.raw})` }}>{g.title}<span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', border: `1px solid hsl(${g.raw} / 0.4)`, borderRadius: 999, padding: '0 6px' }}>{g.code}</span></div>
+            <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>{item.why}. {g.body}</div></div>
         </div>
-        {canProceed && <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 5 }}>Override reason</div>
-          <textarea placeholder="Why are you overriding the gate?" style={{ width: '100%', height: 48, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: 9, boxSizing: 'border-box', fontSize: 12.5, fontFamily: 'inherit', resize: 'none' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'hsl(var(--primary))', fontWeight: 600, marginTop: 11 }}><Icon name="arrow-right" size={13} />Next: {item.next}</div>
+        {!hasTarget && !isBlock && <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 9 }}><Icon name="move" size={13} />Drag this card onto a technician's day to place it.</div>}
+        {hasTarget && needsReason && <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 5 }}>Authorising role <span style={{ color: 'hsl(var(--destructive))' }}>*</span></div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {['Manager', 'Scheduler', 'Director'].map((r) => <button key={r} onClick={() => setAuthority(r)} style={{ flex: 1, height: 34, borderRadius: 8, fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1px solid ${authority === r ? 'hsl(var(--primary))' : 'hsl(var(--input))'}`, background: authority === r ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: authority === r ? 'hsl(var(--primary))' : 'hsl(var(--foreground))' }}>{r}</button>)}
+          </div>
+          <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginBottom: 5 }}>Override reason <span style={{ color: 'hsl(var(--destructive))' }}>*</span></div>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why are you overriding the gate? (recorded on the audit trail)" style={{ width: '100%', height: 52, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: 9, boxSizing: 'border-box', fontSize: 12.5, fontFamily: 'inherit', resize: 'none' }} />
         </div>}
         <div style={{ display: 'flex', gap: 9, marginTop: 14 }}>
           <Button variant="outline" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>Cancel</Button>
-          <Button variant="primary" icon={canProceed ? 'check' : 'ban'} onClick={onClose} style={{ flex: 1, justifyContent: 'center', ...(canProceed ? {} : { opacity: 0.5, pointerEvents: 'none' }) }}>{canProceed ? 'Override & Schedule' : 'Blocked'}</Button>
+          {isBlock
+            ? <Button variant="primary" icon="search-check" onClick={onReview} style={{ flex: 1.4, justifyContent: 'center', background: 'hsl(var(--warning))' }}>{g.verb}</Button>
+            : <Button variant="primary" icon={g.icon} onClick={() => onCommit(item.sev === 'override' ? { override: reason } : item.sev === 'warn' ? { warned: true } : {})} style={{ flex: 1.4, justifyContent: 'center', ...(canCommit ? {} : { opacity: 0.45, pointerEvents: 'none' }) }}>{g.verb}</Button>}
         </div>
       </div>
     </div>

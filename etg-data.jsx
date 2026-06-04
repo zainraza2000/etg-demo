@@ -61,14 +61,32 @@ const PROJECTS = [
   { id: 'PRJ-000140', name: 'Head Office Comms Refresh', client: 'Kingston Logistics', loc: 'Melbourne, VIC', status: 'Completed', serviceType: 'Comms & Data', value: '$210,000', margin: 27.5, health: 88, end: '20 Apr 2026', pm: 'Sarah Chen', start: '05 Jan 2026', costCentres: [] },
 ];
 
+// Supplier-cost reconciliation discrepancies per project — the invoice gate input.
+// Mirrors the Invoice Matching rows: a client invoice stays Draft/Blocked until
+// every supplier cost for the job is reconciled. Empty array = no recon blockers.
+const PROJECT_RECON = {
+  'PRJ-000142': [
+    { label: 'TechVision $4,560 — PO missing, job link required (IM-000061)', sev: 'block' },
+    { label: 'Bosch INV-99001 — amount mismatch $3,215 vs $3,680 (IM-000066)', sev: 'block' },
+  ],
+  'PRJ-000144': [
+    { label: 'Hikvision split invoice — allocation unconfirmed (IM-000064)', sev: 'warn' },
+  ],
+  'PRJ-000148': [
+    { label: 'Dahua INV-44657 — GST mismatch, manual review (IM-000065)', sev: 'block' },
+  ],
+};
+
 // ---- Service Tickets ----
 const TICKET_KPIS = [
-  { title: 'Active Tickets', value: '23', sub: 'View all', icon: 'shield-alert', color: 'blue' },
-  { title: 'In Progress', value: '12', sub: 'View all', icon: 'clock', color: 'orange' },
-  { title: 'On Hold', value: '5', sub: 'View all', icon: 'pause-circle', color: 'green' },
-  { title: 'Overdue', value: '4', sub: 'View all', icon: 'alarm-clock', color: 'red' },
-  { title: 'Resolved (30 Days)', value: '38', sub: 'View all', icon: 'check-circle-2', color: 'violet', upcoming: true },
-  { title: 'Avg. Resolution Time', value: '18.6 hrs', sub: 'View report', icon: 'timer', color: 'slate', upcoming: true },
+  { title: 'Open', value: '6', sub: 'View all', icon: 'inbox', color: 'blue' },
+  { title: 'In Progress', value: '5', sub: 'View all', icon: 'loader', color: 'orange' },
+  { title: 'Overdue', value: '3', sub: 'View all', icon: 'alarm-clock', color: 'red' },
+  { title: 'High Priority', value: '3', sub: 'View all', icon: 'flame', color: 'red' },
+  { title: 'Awaiting Review', value: '1', sub: 'View all', icon: 'help-circle', color: 'violet' },
+  { title: 'Customer Escalations', value: '2', sub: 'View all', icon: 'arrow-up-circle', color: 'red' },
+  { title: 'Asset Alert', value: '4', sub: 'View all', icon: 'cctv', color: 'orange' },
+  { title: 'Jobs Created', value: '3', sub: 'View all', icon: 'briefcase', color: 'green' },
 ];
 
 const TICKETS = [
@@ -105,6 +123,20 @@ TICKETS.push(
   { id: 'ST-000095', subject: 'Vehicle Service — Van 3', client: 'ETG (Internal)', site: 'Depot', asset: '—', assetLoc: '—', priority: 'Low', status: 'Open', assignee: 'Unassigned', created: '12 May 2026', createdT: '9:20 AM', due: '20 May 2026', dueT: '—', source: 'Manager Entry', assets: 0, issueType: 'Internal / Fleet', subjectType: 'Internal', bu: 'Evolution', ownership: 'Internal', impact: 'No impact' },
   { id: 'ST-000094', subject: 'Shared Site — Who Owns This?', note: 'ETG + Localcom services', client: 'ABC Corporate', site: 'Sydney Office', asset: '—', assetLoc: 'Comms Room', priority: 'Medium', status: 'Open', assignee: 'Unassigned', created: '11 May 2026', createdT: '4:50 PM', due: '15 May 2026', dueT: '—', source: 'Email', assets: 2, issueType: 'Network / Connectivity', subjectType: 'Customer', bu: 'Shared', ownership: 'Needs Review', impact: 'Minor' },
 );
+// operational signals (real ticket attributes — NOT engine outputs) that drive
+// the derived operational-state badge + Needs Action exceptions strip.
+//   waiting: 'Client' | 'Parts'  ·  escalate · repeat (recurring fault) · convert (ready to convert to job)
+const _TK_OPS = {
+  'ST-000104': { escalate: true },        // access not unlocking — safety, needs escalation
+  'ST-000103': { waiting: 'Parts' },      // NVR — awaiting replacement HDD
+  'ST-000102': { repeat: true },          // recurring network dropouts (3rd this month)
+  'ST-000100': { waiting: 'Client' },     // intercom — awaiting client site access
+  'ST-000099': { convert: true },         // image quality — ready to convert to a service job
+  'ST-000098': { waiting: 'Parts' },      // door reader — part on order
+  'ST-000097': { escalate: true },        // internal internet down — escalate to Localcom
+};
+TICKETS.forEach((t) => Object.assign(t, _TK_OPS[t.id] || {}));
+
 const TICKETS_NEEDS_REVIEW = TICKETS.filter((t) => t.ownership === 'Needs Review').length;
 
 // ---- option literals (forms) ----
@@ -249,6 +281,24 @@ const TIMESHEET_KPIS = [
   { title: 'Approved Hours', value: '219.00', sub: 'This Week — View report', icon: 'check-circle-2', color: 'slate' },
 ];
 
+// ---- Site registry: Customer → Site is the core operational link ----
+// Keyed "Customer|Site"; siteInfo() falls back to the customer's primary site.
+const SITES = {
+  'ABC Corporate|Sydney Office': { address: '14 George St, Sydney NSW 2000', contact: 'John Smith', role: 'Facilities Manager', phone: '0412 345 678', assets: 8, openTickets: 3, prevTickets: ['ST-000104 · Access control fault', 'ST-000100 · Intercom no audio', 'ST-000088 · NVR storage full'], access: 'Sign in at reception · lift fob at security desk' },
+  'Retail Group|Store 47': { address: '200 Hay St, Perth WA 6000', contact: 'Mark Lowe', role: 'Store Manager', phone: '0421 778 332', assets: 4, openTickets: 1, prevTickets: ['ST-000103 · NVR recording issue', 'ST-000061 · Reader intermittent'], access: 'Ask for the duty manager · rear-door key at office' },
+  'Retail Group|Store 50': { address: '88 Murray St, Perth WA 6000', contact: 'Priya Nair', role: 'Store Manager', phone: '0422 110 905', assets: 3, openTickets: 1, prevTickets: ['ST-000098 · Door reader offline'], access: 'Loading dock entry · watch for vehicles' },
+  "St Mary's College|Main Campus": { address: '1 College Rd, Brisbane QLD 4000', contact: 'Dana Reid', role: 'Site Manager', phone: '0455 221 904', assets: 6, openTickets: 2, prevTickets: ['ST-000101 · Motion detection fault', 'ST-000077 · Panel comms lost'], access: 'Front office sign-in · escort during school hours' },
+  'Fusion Manufacturing|Factory 1': { address: '12 Factory Ln, Adelaide SA 5000', contact: 'Greg Hall', role: 'Plant Supervisor', phone: '0433 567 221', assets: 5, openTickets: 1, prevTickets: ['ST-000102 · Network dropouts'], access: 'Report to gatehouse · hi-vis + steel caps required' },
+  'TechVision Wholesale|Warehouse': { address: '5 Industrial Dr, Sydney NSW 2164', contact: 'Owen Tan', role: 'Warehouse Lead', phone: '0466 332 018', assets: 2, openTickets: 1, prevTickets: ['ST-000099 · CCTV image quality'], access: 'Office sign-in · forklift area — keep clear' },
+};
+const CUSTOMER_PRIMARY_SITE = { 'ABC Corporate': 'Sydney Office', 'Retail Group': 'Store 47', "St Mary's College": 'Main Campus', "St. Mary's College": 'Main Campus', 'Fusion Manufacturing': 'Factory 1', 'TechVision Wholesale': 'Warehouse' };
+function siteInfo(customer, site) {
+  if (customer && site && SITES[customer + '|' + site]) return SITES[customer + '|' + site];
+  const ps = CUSTOMER_PRIMARY_SITE[customer];
+  return ps ? SITES[customer + '|' + ps] : null;
+}
+function primarySite(customer) { return CUSTOMER_PRIMARY_SITE[customer] || null; }
+
 const TIMESHEETS = [
   { tech: 'Brendan Lee', id: 'USR-000012', total: '38.00', billable: '32.00', billablePct: 84, nonBillable: '6.00', nonBillablePct: 16, status: 'Approved',
     week: '12 – 18 May 2026', overtime: '0.00', standard: '38.00', breaks: '2.30',
@@ -352,11 +402,11 @@ TIMESHEETS.forEach((t, i) => { t.usr = 'USR-' + String(12 + i).padStart(6, '0');
 })();
 
 Object.assign(window, {
-  NAV, PROJECT_KPIS, PROJECTS, TICKET_KPIS, TICKETS, TICKETS_NEEDS_REVIEW, ASSET_KPIS, ASSETS,
+  NAV, PROJECT_KPIS, PROJECTS, PROJECT_RECON, TICKET_KPIS, TICKETS, TICKETS_NEEDS_REVIEW, ASSET_KPIS, ASSETS,
   ISSUE_TYPES, SOURCES, CUSTOMER_IMPACT, JOB_CLASSIFICATIONS, PRIORITIES, SAMPLE_CUSTOMERS,
   PROJECT_CLIENTS, PROJECT_OWNERS, PROJECT_SERVICE_TYPES, PROJECT_STATUSES, PROJECT_SUPPLIERS, PROJECT_SKILLS, SAMPLE_QUOTE, FIELD_JOBS,
   CAL_KPIS, CAL_DAYS, TECHS, CAL_JOBS, CAL_UNASSIGNED, ASSET_KPIS2,
-  TIMESHEET_KPIS, TIMESHEETS,
+  TIMESHEET_KPIS, TIMESHEETS, SITES, siteInfo, primarySite,
 });
 
 // Augment assets with system asset id (EG-NNNN), brand/manufacturer & criticality.
@@ -435,7 +485,7 @@ const MATCH_KPIS = [
   { title: 'Exceptions', value: '11', sub: 'Require Attention · $22,650.80', icon: 'alert-triangle', color: 'red', preview: true },
   { title: 'Matched', value: '72', sub: 'Ready for Reconciliation', icon: 'check-circle-2', color: 'slate', preview: true },
 ];
-const MATCH_TABS = [['All', 389], ['Unmatched Bank', 126], ['Unmatched Invoices', 98], ['Potential Matches', 56], ['Pending Review', 18], ['Exceptions', 11], ['Matched', 72], ['Ready for Reconciliation', 31], ['Match Rejected', 4]];
+const MATCH_TABS = [['All', 389], ['Unmatched Bank', 126], ['Unmatched Invoices', 98], ['Potential Matches', 56], ['Needs Review', 18], ['Exceptions', 11], ['Ready for Reconciliation', 31], ['Matched', 72], ['Completed', 24], ['Match Rejected', 4]];
 const MATCH_ROWS = [
   { id: 'm1', im: 'IM-000061', status: 'Potential Match', conf: 95, ocr: 98, bankDate: '16 May 2026', bankDesc: 'TechVision Wholesale', bankRef: 'BTX-000204', account: 'Westpac Business Cheque', bankAmt: '$4,560.00', supplier: 'TechVision Wholesale', si: 'SI-000088', inv: 'INV-55421', invDate: '16 May 2026', invAmt: '$4,560.00', invSub: '$4,145.45', invGst: '$414.55' },
   { id: 'm2', im: 'IM-000062', status: 'Pending Review', conf: 78, ocr: 84, bankDate: '15 May 2026', bankDesc: 'ACME SECURITY PTY LTD', bankRef: 'BTX-000205', account: 'Westpac Business Cheque', bankAmt: '$6,732.00', supplier: 'ACME Security Pty Ltd', si: 'SI-000089', inv: 'INV-22110', invDate: '14 May 2026', invAmt: '$6,732.00', invSub: '$6,120.00', invGst: '$612.00' },
@@ -451,6 +501,22 @@ const MATCH_ROWS = [
   { id: 'm12', im: 'IM-000072', status: 'Match Rejected', conf: 64, ocr: 72, bankDate: '09 May 2026', bankDesc: 'GENERIC HARDWARE', bankRef: 'BTX-000214', account: 'CommBank Business Visa', bankAmt: '$245.00', supplier: 'Generic Hardware', si: 'SI-000098', inv: 'INV-10044', invDate: '02 May 2026', invAmt: '$245.00', invSub: '$222.73', invGst: '$22.27', reason: 'Rejected — wrong supplier on review' },
 ];
 const MATCH_RULES = ['Supplier name similarity', 'Amount within $2.00 or 0.5% tolerance', 'Date within 14 days', 'Reference / invoice number match', 'PO number match', 'ABN match', 'Payment method match'];
+// Two-layer chain: the extracted PO + linked job (Layer 2). Layer 1 (bank↔invoice)
+// is derived from conf/mismatch. A strong bank match does NOT make a row ready —
+// it stays Blocked until a PO/job link exists. po:null => PO missing.
+const _MATCH_PO = {
+  m1: { po: null, job: null, proj: 'ABC Corporate — Sydney Office', cc: 'Electrical', cat: 'CCTV Equipment' }, // 95% bank match BUT no PO link → Blocked
+  m2: { po: 'PO-001248', job: 'FJ-001049', jobName: 'Access Control Install · ABC Corporate', proj: 'ABC Corporate — Sydney Office', cc: 'Access Control', cat: 'Readers & Controllers' },
+  m4: { po: 'PO-001251', job: 'FJ-001050', jobName: 'CCTV Upgrade · ABC Corporate', split: true, proj: 'ABC Corporate — Level 1', cc: 'Electrical', cat: 'CCTV Equipment' },
+  m5: { po: 'PO-001252', job: 'FJ-001051', jobName: 'Camera Maintenance · Retail Group', proj: 'Retail Group — Store 47', cc: 'Maintenance', cat: 'Cameras' },
+  m6: { po: null, job: null, proj: 'Retail Group — Store 47', cc: 'Maintenance', cat: 'NVR / Storage' }, // amount mismatch + no PO
+  m7: { po: 'PO-001253', job: 'FJ-001052', jobName: 'NVR Install · Retail Group', proj: 'Retail Group — Store 50', cc: 'Installation', cat: 'NVR / Storage' },
+  m8: { po: null, job: null, overhead: true, proj: '—', cc: 'Overhead', cat: 'Staff amenities' }, // personal-expense risk → overhead candidate
+  m9: { po: null, job: null, proj: 'ABC Corporate — Sydney Office', cc: 'Access Control', cat: 'Readers & Controllers' },
+  m10: { po: 'PO-001254', job: 'FJ-001054', jobName: 'Lighting Install · BuildCo Group', proj: 'BuildCo Group — Warehouse', cc: 'Electrical', cat: 'Lighting' },
+  m11: { po: 'PO-001256', job: 'FJ-001055', jobName: 'Comms Cabling · CableCore', proj: 'CableCore — Head Office', cc: 'Comms & Data', cat: 'Structured Cabling' },
+};
+MATCH_ROWS.forEach((r) => Object.assign(r, _MATCH_PO[r.id] || { po: null, job: null }));
 const MATCH_ACTIVITY = [
   ['Auto matched: INV-55421 to BTX-000204', '16 May 2026 09:15 AM', 'check-circle-2', 'hsl(var(--success))'],
   ['Invoice INV-88765 uploaded', '15 May 2026 03:22 PM', 'upload', 'hsl(var(--info))'],

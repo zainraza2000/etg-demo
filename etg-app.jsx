@@ -15,7 +15,7 @@ function Placeholder({ id }) {
 }
 
 function App() {
-  const [active, setActive] = useStateApp('projects');
+  const [active, setActive] = useStateApp((new URLSearchParams(location.search).get('screen')) || window.__ETG_SCREEN || 'dashboard');
   const [subpage, setSubpage] = useStateApp(null); // e.g. 'new-ticket', 'new-project'
   const [collapsed, setCollapsed] = useStateApp(false);
 
@@ -25,6 +25,7 @@ function App() {
     if (subpage === 'new-ticket') return <CreateTicketScreen onClose={() => setSubpage(null)} />;
     if (subpage === 'new-project') return <CreateProjectScreen onClose={() => setSubpage(null)} />;
     switch (active) {
+      case 'dashboard': return <DashboardScreen onNavigate={navigate} onNewTicket={() => setSubpage('new-ticket')} onNewProject={() => setSubpage('new-project')} />;
       case 'projects': return <ProjectsScreen onNewProject={() => setSubpage('new-project')} />;
       case 'tickets': return <ServiceTicketsScreen onNewTicket={() => setSubpage('new-ticket')} />;
       case 'assets': return <AssetsScreen />;

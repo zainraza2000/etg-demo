@@ -8,9 +8,17 @@ A live, interactive prototype of the **ETG Dashboard** (*"Leakage & Margin Contr
 
 ## What this is
 
-A **static, build-free** React prototype — React (UMD) + in-browser Babel + lucide icons + Google Fonts, all from CDN. No backend, no bundler. It uses sample data and cosmetic interactions (row select, nav). Use the left rail to switch screens:
+A **static, build-free** React prototype — React (UMD) + in-browser Babel + lucide icons + Google Fonts, all from CDN. No backend, no bundler. It uses sample data and cosmetic interactions (row select, nav). It opens on the **Dashboard**; use the left rail to switch screens:
 
-**Projects · Service Tickets · Client Assets · Calendar · Timesheets · Reconciliation · Invoice Matching · Create Ticket · Create Project**
+**Dashboard · Projects · Service Tickets · Client Assets · Calendar · Timesheets · Reconciliation · Invoice Matching · Create Ticket · Create Project**
+
+You can deep-link a screen with `?screen=tickets`, `?screen=calendar`, etc.
+
+### Technician Portal (mobile)
+
+A second surface — the **field-worker view** — lives at [`technician-portal.html`](./technician-portal.html), rendered inside an on-screen phone frame. It's scoped to one technician: today's jobs, the clock-on/off → travel → arrive → checklist/photos/sign-off → clock-off lifecycle, materials capture and timesheet submit, with **all financials hidden**. Open it from the **Technician Portal** button in the top bar; a link in its header returns you to the Dashboard.
+
+In the real platform this is the *same login rendered by device/role* (a responsive web app, not a separate native app) — the demo just gives it its own page and phone frame so you can see it on desktop. It is **not** an item in the admin sidebar.
 
 The maturity tags on the screens are intentional, reflecting the real platform:
 - **Upcoming** — roadmap capability, not live yet

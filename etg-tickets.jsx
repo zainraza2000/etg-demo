@@ -1,6 +1,114 @@
 // ETG Dashboard — Service Tickets screen.
 const { useState: useStateTk } = React;
 
+// ============================================================================
+// Operational layer — derived, action-oriented signals (not engine outputs).
+// Lifecycle status answers "where is it in its life"; operational state answers
+// "what does the office need to DO about it right now".
+// ============================================================================
+const TK_TODAY = 15; // demo 'today' = 15 May 2026 (all sample due dates fall in May)
+function tkDueDay(t) { const m = /^(\d+)\s+May\s+2026/.exec(t.due || ''); return m ? parseInt(m[1], 10) : null; }
+
+// Graded urgency from the real due date + overdue flag + priority. No SLA engine
+// is involved — this is pure due-date proximity, surfaced as the doc's vocabulary.
+function tkUrgency(t) {
+  const d = tkDueDay(t);
+  if (t.overdue) {
+    if (t.priority === 'High') return d != null && d < TK_TODAY ? { label: 'SLA Breached', tone: 'critical' } : { label: 'SLA Breach Risk', tone: 'critical' };
+    return { label: 'Overdue', tone: 'blocked' };
+  }
+  if (d == null) return { label: 'On Track', tone: null };
+  if (d <= TK_TODAY) return { label: 'Due Today', tone: 'warning' };
+  if (d <= TK_TODAY + 1) return { label: 'Due Soon', tone: 'warning' };
+  return { label: 'On Track', tone: null };
+}
+
+// Single most-important operational state per ticket (priority-ordered).
+const OP_RAW = {
+  'Escalation Required': 'var(--destructive)',
+  'Overdue': 'var(--status-overdue)',
+  'Unassigned': 'var(--warning)',
+  'Needs Review': '258 70% 58%',
+  'Awaiting Parts': 'var(--warning)',
+  'Awaiting Client': 'var(--info)',
+  'Repeat Fault': 'var(--status-invoiced)',
+  'Ready to Convert': 'var(--success)',
+  'On Track': 'var(--muted-foreground)',
+};
+function tkOpState(t) {
+  if (t.ownership === 'Needs Review') return 'Needs Review';
+  if (t.assignee === 'Unassigned') return 'Unassigned';
+  if (t.escalate) return 'Escalation Required';
+  if (t.overdue) return 'Overdue';
+  if (t.waiting === 'Parts') return 'Awaiting Parts';
+  if (t.waiting === 'Client') return 'Awaiting Client';
+  if (t.repeat) return 'Repeat Fault';
+  if (t.convert && !t.fj) return 'Ready to Convert';
+  return 'On Track';
+}
+function OpBadge({ label }) {
+  const v = OP_RAW[label] || 'var(--muted-foreground)';
+  const muted = label === 'On Track';
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 9px', borderRadius: 999, fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+    color: muted ? 'hsl(var(--muted-foreground))' : `hsl(${v})`, background: muted ? 'transparent' : `hsl(${v} / 0.12)`,
+    border: `1px solid ${muted ? 'hsl(var(--border))' : `hsl(${v} / 0.28)`}` }}>
+    <span style={{ width: 6, height: 6, borderRadius: '50%', background: muted ? 'hsl(var(--muted-foreground))' : `hsl(${v})` }} />{label}</span>;
+}
+function UrgencyBadge({ t }) {
+  const u = tkUrgency(t);
+  if (u.tone == null) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
+    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'hsl(var(--success))' }} />On Track</span>;
+  return <StatusBadge status={u.label} tone={u.tone} compact />;
+}
+
+// Needs Action / Exceptions strip — each card is a one-click filter into the queue.
+const TK_EXCEPTIONS = [
+  { key: 'Overdue', icon: 'alarm-clock', raw: 'var(--status-overdue)', match: (t) => t.overdue },
+  { key: 'Unassigned', icon: 'user-x', raw: 'var(--warning)', match: (t) => t.assignee === 'Unassigned' },
+  { key: 'SLA Breach Risk', icon: 'gauge', raw: 'var(--destructive)', match: (t) => { const l = tkUrgency(t).label; return l === 'SLA Breach Risk' || l === 'SLA Breached'; } },
+  { key: 'Escalation Required', icon: 'arrow-up-circle', raw: 'var(--destructive)', match: (t) => t.escalate },
+  { key: 'Awaiting Client', icon: 'phone', raw: 'var(--info)', match: (t) => t.waiting === 'Client' },
+  { key: 'Awaiting Parts', icon: 'package', raw: 'var(--warning)', match: (t) => t.waiting === 'Parts' },
+  { key: 'Repeat Fault', icon: 'repeat', raw: 'var(--status-invoiced)', match: (t) => t.repeat },
+  { key: 'Needs Review', icon: 'help-circle', raw: '258 70% 58%', match: (t) => t.ownership === 'Needs Review' },
+  { key: 'Ready to Convert', icon: 'briefcase', raw: 'var(--success)', match: (t) => t.convert && !t.fj },
+];
+
+function NeedsActionStrip({ tickets, active, onPick }) {
+  const cards = TK_EXCEPTIONS.map((e) => ({ ...e, count: tickets.filter(e.match).length }));
+  const total = tickets.filter((t) => TK_EXCEPTIONS.some((e) => e.match(t))).length;
+  return (
+    <div style={{ marginBottom: 16, border: '1px solid hsl(var(--border))', borderRadius: 14, background: 'hsl(var(--card))', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: '1px solid hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, background: 'hsl(var(--destructive) / 0.12)' }}><Icon name="zap" size={15} color="hsl(var(--destructive))" /></span>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>Needs Action</span>
+        <span style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>{total} of {tickets.length} tickets need attention</span>
+        {active && <button onClick={() => onPick(active)} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 7, border: '1px solid hsl(var(--primary) / 0.3)', background: 'hsl(var(--primary-subtle))', color: 'hsl(var(--primary))', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}>Filtered: {active}<Icon name="x" size={13} /></button>}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 8, padding: 14 }}>
+        {cards.map((c) => {
+          const on = active === c.key; const zero = c.count === 0;
+          return (
+            <button key={c.key} onClick={() => onPick(c.key)} disabled={zero}
+              style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: '1 1 0', minWidth: 0, textAlign: 'left', cursor: zero ? 'default' : 'pointer', fontFamily: 'inherit',
+                padding: '10px 11px', borderRadius: 11, opacity: zero ? 0.5 : 1,
+                background: on ? `hsl(${c.raw} / 0.1)` : 'hsl(var(--card))',
+                border: `1px solid ${on ? `hsl(${c.raw} / 0.55)` : 'hsl(var(--border))'}`,
+                boxShadow: on ? `0 0 0 1px hsl(${c.raw} / 0.45)` : 'none', transition: 'border-color .12s, background .12s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 9, flexShrink: 0, background: `hsl(${c.raw} / 0.13)` }}>
+                  <Icon name={c.icon} size={15} color={`hsl(${c.raw})`} /></span>
+                <span style={{ fontSize: 20, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em', color: zero ? 'hsl(var(--muted-foreground))' : `hsl(${c.raw})` }}>{c.count}</span>
+              </div>
+              <span title={c.key} style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'hsl(var(--foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.key}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Donut({ segments, total, label }) {
   let acc = 0; const stops = [];
   segments.forEach((s) => { const start = acc / total * 360; acc += s.value; const end = acc / total * 360; stops.push(`${s.color} ${start}deg ${end}deg`); });
@@ -38,18 +146,11 @@ function Gauge({ pct }) {
   );
 }
 
-function TkKpiCard({ title, value, sub, icon, color, upcoming, onClick, active }) {
-  const clickable = !!onClick && !upcoming;
-  return (
-    <div onClick={clickable ? onClick : undefined} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12, padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: upcoming ? 0.55 : 1 }}><Icon name={icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 6px', letterSpacing: '-0.02em', color: upcoming ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{upcoming ? '—' : value}</div>
-        {upcoming ? <UpcomingPill /> : <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: clickable ? 'pointer' : 'default' }}>{sub}</div>}
-      </div>
-    </div>
-  );
+// adapt a tickets KPI record to shared KpiCard props (Upcoming tiles show — + roadmap pill, not clickable)
+function tkKpiProps(k) {
+  return { title: k.title, value: k.upcoming ? undefined : k.value, sub: k.upcoming ? undefined : k.sub,
+    icon: k.icon, color: k.color, valueMuted: !!k.upcoming, iconOpacity: k.upcoming ? 0.55 : 1,
+    tag: k.upcoming ? <UpcomingPill /> : null };
 }
 
 function TicketBoard({ rows, onOpen }) {
@@ -74,7 +175,7 @@ function ServiceTicketsScreen({ onNewTicket }) {
   const [previewId, setPreviewId] = useStateTk(null);
   const [previewRect, setPreviewRect] = useStateTk(null);
   const [drawerId, setDrawerId] = useStateTk(null);
-  const [savedView, setSavedView] = useStateTk('All');
+  const [exFilter, setExFilter] = useStateTk(null);
   const [search, setSearch] = useStateTk('');
   const [fStatus, setFStatus] = useStateTk('All');
   const [fPriority, setFPriority] = useStateTk('All');
@@ -96,13 +197,19 @@ function ServiceTicketsScreen({ onNewTicket }) {
   function cycleAssign(id) { const cur = assignOv[id] || TICKETS.find((t) => t.id === id).assignee; const i = ASSIGNEES.indexOf(cur); setAssignOv((m) => ({ ...m, [id]: ASSIGNEES[(i + 1) % ASSIGNEES.length] })); }
 
   // KPI → status filter (index-aligned to TICKET_KPIS)
-  const KPI_STATUS = ['Open', 'In Progress', 'On Hold', '__overdue', 'Resolved', null];
-  const kpiMatch = (t) => { if (!kpiFilter) return true; if (kpiFilter === '__overdue') return t.overdue; return (statusOv[t.id] || t.status) === kpiFilter; };
+  const KPI_STATUS = ['Open', 'In Progress', '__overdue', '__high', 'Awaiting Review', '__escalation', '__assetalert', '__jobcreated'];
+  const kpiMatch = (t) => { if (!kpiFilter) return true;
+    if (kpiFilter === '__overdue') return t.overdue;
+    if (kpiFilter === '__high') return t.priority === 'High';
+    if (kpiFilter === '__escalation') return !!t.escalate;
+    if (kpiFilter === '__assetalert') return t.assets > 0;
+    if (kpiFilter === '__jobcreated') return !!t.fj;
+    if (kpiFilter === 'Awaiting Review') return t.ownership === 'Needs Review';
+    return (statusOv[t.id] || t.status) === kpiFilter; };
 
-  const savedMatch = { All: () => true, Overdue: (t) => t.overdue, Unassigned: (t) => (assignOv[t.id] || t.assignee) === 'Unassigned',
-    'Needs Review': (t) => t.ownership === 'Needs Review', Recurring: () => false };
+  const exMatch = (t) => { if (!exFilter) return true; const ex = TK_EXCEPTIONS.find((e) => e.key === exFilter); return ex ? ex.match(t) : true; };
   const filtered = TICKETS.map(withOv).filter((t) => {
-    if (!(savedMatch[savedView] || (() => true))(t)) return false;
+    if (!exMatch(t)) return false;
     if (!kpiMatch(t)) return false;
     if (fStatus !== 'All' && t.status !== fStatus) return false;
     if (fPriority !== 'All' && t.priority !== fPriority) return false;
@@ -113,7 +220,7 @@ function ServiceTicketsScreen({ onNewTicket }) {
   const pages = Math.max(1, Math.ceil(filtered.length / PER));
   const pg = Math.min(page, pages);
   const rows = filtered.slice((pg - 1) * PER, pg * PER);
-  const savedCounts = (key) => TICKETS.filter(savedMatch[key] || (() => true)).length;
+  const pickEx = (k) => { setExFilter(exFilter === k ? null : k); setPage(1); };
 
   return (
     <div>
@@ -124,17 +231,10 @@ function ServiceTicketsScreen({ onNewTicket }) {
           <Button variant="outline" icon="filter">Filters</Button>
           <Button variant="primary" icon="plus" onClick={onNewTicket}>New Ticket</Button>
         </>} />
-      <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
+      <NeedsActionStrip tickets={TICKETS.map(withOv)} active={exFilter} onPick={pickEx} />
+      <div style={{ marginBottom: 18, display: 'flex', flexWrap: 'nowrap', gap: 12 }}>
         {TICKET_KPIS.map((k, i) => { const f = KPI_STATUS[i];
-          return <TkKpiCard key={i} {...k} onClick={f == null ? undefined : () => { setKpiFilter(kpiFilter === f ? null : f); setPage(1); }} active={kpiFilter === f && f != null} />; })}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        {[['All', false], [`Needs Review`, true], ['Overdue', false], ['Unassigned', false], ['Recurring', true]].map(([l, up], i) => {
-          const on = savedView === l;
-          return <span key={i} onClick={() => { setSavedView(l); setPage(1); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 500, padding: '5px 11px', borderRadius: 999, cursor: 'pointer',
-            background: on ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', color: on ? 'hsl(var(--primary))' : 'hsl(var(--foreground))', border: `1px solid ${on ? 'hsl(var(--primary) / 0.3)' : 'hsl(var(--border))'}` }}>
-            {l}{l !== 'Recurring' && <span style={{ fontSize: 11, fontWeight: 700, color: on ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}>({savedCounts(l)})</span>}{up && <UpcomingPill compact />}</span>;
-        })}
+          return <KpiCard key={i} {...tkKpiProps(k)} onClick={k.upcoming || f == null ? undefined : () => { setKpiFilter(kpiFilter === f ? null : f); setPage(1); }} active={kpiFilter === f && f != null} />; })}
       </div>
       <FilterBar search="Search tickets by ID, title, client, site, asset..." searchValue={search} onSearch={(v) => { setSearch(v); setPage(1); }}
         filters={[
@@ -147,26 +247,45 @@ function ServiceTicketsScreen({ onNewTicket }) {
       <div onMouseLeave={() => setPreviewId(null)} style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
-              {['Ticket ID', 'Subject', 'Client / Site', 'Asset', 'Priority', 'Status', 'Assigned To', 'Created', 'Due Date'].map((h, i) =>
-                <th key={i} style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '11px 14px' }}>
-                  {h === 'Asset' ? <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>Asset<PreviewPill /></span> : h}</th>)}
+              {['Ticket ID', 'Subject', 'Client / Site', 'Operational State', 'Urgency', 'Priority', 'Status', 'Assigned To', ''].map((h, i) =>
+                <th key={i} style={{ textAlign: 'left', verticalAlign: 'top', fontWeight: 500, fontSize: 12, color: 'hsl(var(--muted-foreground))', padding: '11px 14px', whiteSpace: 'nowrap' }}>{h}</th>)}
             </tr></thead>
             <tbody>
               {rows.length === 0 && <tr><td colSpan={9} style={{ padding: '28px 14px', textAlign: 'center', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>No tickets match the current filters.</td></tr>}
               {rows.map((t) => {
                 const isSel = previewId === t.id;
+                const unassigned = t.assignee === 'Unassigned';
+                const op = tkOpState(t);
+                const menu = [
+                  { icon: 'external-link', label: 'Open Ticket', onClick: () => setDrawerId(t.id) },
+                  { icon: 'user-plus', label: 'Assign', onClick: () => cycleAssign(t.id) },
+                  { icon: 'refresh-cw', label: 'Update Status', onClick: () => cycleStatus(t.id) },
+                  { icon: 'pause-circle', label: 'Put on Hold', onClick: () => setStatusOv((m) => ({ ...m, [t.id]: 'On Hold' })) },
+                  { divider: true },
+                  { icon: 'arrow-up-circle', label: 'Escalate', up: true },
+                  { icon: 'briefcase', label: 'Convert to Job', up: true },
+                  { icon: 'calendar-plus', label: 'Schedule', up: true },
+                  { icon: 'phone', label: 'Contact Client', up: true },
+                  { icon: 'link', label: 'Link Asset', up: true },
+                  { icon: 'message-square-plus', label: 'Add Note', onClick: () => setDrawerId(t.id) },
+                ];
                 return (
                   <tr key={t.id} onMouseEnter={(e) => openPreview(e, t.id)} onClick={(e) => openPreview(e, t.id)} onDoubleClick={() => setDrawerId(t.id)}
                     style={{ borderBottom: '1px solid hsl(var(--border))', cursor: 'pointer', background: isSel ? 'hsl(var(--primary-subtle) / 0.5)' : 'transparent' }}>
-                    <td style={{ padding: '11px 14px' }}><IdChip id={t.id} /></td>
+                    <td style={{ padding: '11px 14px', boxShadow: unassigned ? 'inset 3px 0 0 hsl(var(--warning))' : 'none' }}>
+                      <IdChip id={t.id} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: 11, color: 'hsl(var(--muted-foreground))' }}><Icon name="radio" size={10} />via {t.source}</div>
+                    </td>
                     <td>{t.subject}{t.note && <div style={{ fontSize: 11.5, color: 'hsl(var(--destructive))', marginTop: 1 }}>{t.note}</div>}<div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3, flexWrap: 'wrap' }}><span style={{ fontSize: 10, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted) / 0.6)', border: '1px solid hsl(var(--border))', padding: '0 6px', borderRadius: 999 }}>{t.issueType}</span>{t.fj && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontFamily: 'var(--font-mono)', color: 'hsl(var(--muted-foreground))' }}><Icon name="briefcase" size={9} />{t.fj}</span>}</div></td>
                     <td>{t.client}<div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{t.site}</div></td>
-                    <td><span style={{ color: 'hsl(var(--muted-foreground))', fontSize: 12.5 }}>Assets ({t.assets})</span></td>
+                    <td><OpBadge label={op} /></td>
+                    <td><UrgencyBadge t={t} /><div style={{ fontSize: 11, color: t.overdue ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))', marginTop: 3 }}>{t.due}</div></td>
                     <td><PriorityBadge priority={t.priority} /></td>
                     <td><StatusBadge status={t.status} /></td>
-                    <td><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Avatar name={t.assignee} size={24} /><span style={{ fontSize: 12.5 }}>{t.assignee}</span></span></td>
-                    <td style={{ fontSize: 12.5 }}>{t.created}<div style={{ fontSize: 11.5, marginTop: 1 }}><SiteTime time={t.createdT} zone={siteZoneFor(t.client)} small primaryColor="hsl(var(--muted-foreground))" /></div></td>
-                    <td style={{ fontSize: 12.5, color: t.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: t.overdue ? 600 : 400 }}>{t.due}<div style={{ fontSize: 11.5, marginTop: 1 }}><SiteTime time={t.dueT} zone={siteZoneFor(t.client)} small primaryColor={t.overdue ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))'} /></div></td>
+                    <td>{unassigned
+                      ? <button onClick={(e) => { e.stopPropagation(); cycleAssign(t.id); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 10px', borderRadius: 999, border: '1px dashed hsl(var(--warning) / 0.6)', background: 'hsl(var(--warning) / 0.1)', color: 'hsl(28 80% 38%)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600 }}><Icon name="user-plus" size={13} />Assign</button>
+                      : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Avatar name={t.assignee} size={24} /><span style={{ fontSize: 12.5 }}>{t.assignee}</span></span>}</td>
+                    <td style={{ paddingRight: 10 }}><RowMenu items={menu} /></td>
                   </tr>
                 );
               })}
@@ -181,21 +300,29 @@ function ServiceTicketsScreen({ onNewTicket }) {
       {drawerTk && <TicketDrawer t={drawerTk} onClose={() => setDrawerId(null)} />}
 
       {/* analytics footer */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginTop: 16 }}>
-        <Panel title="Tickets by Priority"><Donut total={23} label="Total" segments={[
-          { label: 'High', value: 4, color: 'hsl(var(--destructive))' }, { label: 'Medium', value: 10, color: 'hsl(var(--warning))' }, { label: 'Low', value: 9, color: 'hsl(var(--success))' }]} /></Panel>
-        <Panel title="Tickets by Status"><Donut total={23} label="Total" segments={[
-          { label: 'Open', value: 6, color: 'hsl(var(--primary))' }, { label: 'In Progress', value: 12, color: 'hsl(var(--info))' }, { label: 'On Hold', value: 5, color: 'hsl(var(--warning))' }]} /></Panel>
-        <Panel title="SLA Performance" action={<UpcomingPill />}>
-          <div style={{ border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 10, padding: '20px 14px', textAlign: 'center' }}>
-            <div style={{ fontSize: 34, fontWeight: 800, lineHeight: 1, color: 'hsl(var(--muted-foreground))' }}>—</div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 9, color: 'hsl(var(--muted-foreground))', fontSize: 12, fontWeight: 600 }}><Icon name="loader" size={13} />Calculating…</div>
-            <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 7, lineHeight: 1.5 }}>The SLA engine is on the roadmap. Today only ticket <b>Overdue</b> status is tracked.</div>
-          </div>
+      {/* operational footer — action-oriented widgets, not decorative charts */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 16 }}>
+        <Panel title="Needing action by type">
+          {[['Unassigned', TICKETS.filter((t) => (assignOv[t.id] || t.assignee) === 'Unassigned').length, 'user-x', 'var(--warning)'], ['Overdue', TICKETS.filter((t) => t.overdue).length, 'alarm-clock', 'var(--destructive)'], ['Escalation required', TICKETS.filter((t) => t.escalate).length, 'arrow-up-circle', 'var(--destructive)'], ['Awaiting parts', TICKETS.filter((t) => t.waiting === 'Parts').length, 'package', 'var(--warning)'], ['Awaiting client', TICKETS.filter((t) => t.waiting === 'Client').length, 'phone', 'var(--info)'], ['Ready to convert', TICKETS.filter((t) => t.convert && !t.fj).length, 'briefcase', 'var(--success)']].map(([l, n, ic, c], i, arr) =>
+            <div key={i} onClick={() => { const ex = TK_EXCEPTIONS.find((e) => e.key === l || (l === 'Escalation required' && e.key === 'Escalation Required') || (l === 'Awaiting parts' && e.key === 'Awaiting Parts') || (l === 'Awaiting client' && e.key === 'Awaiting Client') || (l === 'Ready to convert' && e.key === 'Ready to Convert')); if (ex) pickEx(ex.key); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 0', borderBottom: i < arr.length - 1 ? '1px solid hsl(var(--border))' : 'none', cursor: 'pointer' }}>
+              <span style={{ width: 26, height: 26, borderRadius: 7, background: `hsl(${c} / 0.12)`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name={ic} size={14} color={`hsl(${c})`} /></span>
+              <span style={{ flex: 1, fontSize: 13 }}>{l}</span><span style={{ fontSize: 15, fontWeight: 800, color: n > 0 ? `hsl(${c})` : 'hsl(var(--muted-foreground))' }}>{n}</span><Icon name="chevron-right" size={14} color="hsl(var(--muted-foreground))" /></div>)}
         </Panel>
-        <Panel title="Top Issue Types">
-          {[['CCTV / Video', 11], ['Access Control', 6], ['Network / Connectivity', 4], ['Intercom', 2], ['Other', 0]].map(([l, v], i) =>
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, borderBottom: i < 4 ? '1px solid hsl(var(--border))' : 'none' }}><span>{l}</span><span style={{ fontWeight: 600 }}>{v}</span></div>)}
+        <Panel title="Overdue by technician">
+          {[['Brendan Lee', 1], ['Liam Smith', 1], ['Jake Murray', 0], ['Unassigned', 1]].map(([name, n], i, arr) =>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 0', borderBottom: i < arr.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
+              <Avatar name={name} size={24} /><span style={{ flex: 1, fontSize: 13 }}>{name}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: n > 0 ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))' }}>{n} overdue</span></div>)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, paddingTop: 9, borderTop: '1px solid hsl(var(--border))' }}>
+            <span style={{ flex: 1, fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>Unassigned &gt; 24h</span><span style={{ fontSize: 14, fontWeight: 800, color: 'hsl(var(--warning))' }}>2</span></div>
+        </Panel>
+        <Panel title="This period">
+          {[['Repeat faults by site', "ABC Corporate · Sydney Office", '2'], ['Top client (open tickets)', 'ABC Corporate', '6'], ['Converted to jobs', 'This month', '7'], ['Resolved (30 days)', 'count · trend', '38'], ['Avg first response', 'engine pending', '—']].map(([l, sub, v], i, arr) =>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: i < arr.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
+              <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13 }}>{l}</div><div style={{ fontSize: 10.5, color: 'hsl(var(--muted-foreground))' }}>{sub}</div></div>
+              <span style={{ fontSize: 15, fontWeight: 800, color: v === '—' ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>{v}</span>
+              {v === '—' && <span style={{ flexShrink: 0 }}><PreviewPill /></span>}</div>)}
         </Panel>
       </div>
     </div>
@@ -212,8 +339,18 @@ function TicketDetail({ ticket }) {
   const [localStatus, setLocalStatus] = useStateTk(t.status);
   const tabs = ['Details', `Assets (${t.assets})`, 'Timeline', 'Notes', 'Files', 'Customer Messages', 'Related Jobs'];
   const tabTag = { [`Assets (${t.assets})`]: <PreviewPill />, 'Customer Messages': <UpcomingPill />, 'Related Jobs': <UpcomingPill /> };
+  const noSite = !t.site || t.site === '—';
+  const info = siteInfo(t.client, t.site) || {};
   return (
     <div style={{ position: 'sticky', top: 0 }}>
+      <SiteContextHeader customer={t.client} site={t.site} address={info.address} contact={info.contact} link={t.fj || t.id} tech={t.assignee} needsSite={noSite} />
+      {noSite && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, padding: '11px 13px', borderRadius: 10, background: 'hsl(var(--warning-subtle))', border: '1px solid hsl(var(--warning) / 0.3)', marginBottom: 14 }}>
+        <Icon name="triangle-alert" size={16} color="hsl(var(--warning))" style={{ flexShrink: 0, marginTop: 1 }} />
+        <div><div style={{ fontSize: 13, fontWeight: 700, color: 'hsl(28 80% 38%)' }}>In triage — site required</div>
+          <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 2 }}>This ticket has no site yet. A site must be set before it can be scheduled or converted to a job.</div>
+          <button style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 11px', borderRadius: 7, border: '1px solid hsl(var(--primary) / 0.3)', background: 'hsl(var(--card))', color: 'hsl(var(--primary))', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><Icon name="map-pin" size={13} />Set site</button>
+        </div>
+      </div>}
       <Panel pad={15}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <IdChip id={t.id} />
@@ -232,13 +369,14 @@ function TicketDetail({ ticket }) {
         </div>
         <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 5 }}>
           <KV k="Client"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="CLI-000023" /><span style={{ color: 'hsl(var(--primary))' }}>{t.client}</span></span></KV>
-          <KV k="Site"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="SITE-000050" />{t.site}</span></KV>
+          <KV k="Site">{noSite ? <span style={{ color: 'hsl(var(--warning))', fontWeight: 600 }}>Site required (triage)</span> : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="SI-000050" /><span style={{ color: 'hsl(var(--primary))' }}>{t.site}</span></span>}</KV>
+          {!noSite && <KV k="Site Address">{info.address || t.location || '—'}</KV>}
+          {!noSite && <KV k="Site Contact"><span>{info.contact || 'Site contact'}{info.phone ? ' · ' + info.phone : ''}</span></KV>}
+          {!noSite && <KV k="Site Access"><span style={{ color: 'hsl(var(--muted-foreground))' }}>{info.access || '—'}</span></KV>}
           <KV k="Location">{t.location || t.assetLoc}</KV>
           <KV k="Source">{t.source}</KV>
           <KV k="Issue Type">{t.issueType}</KV>
           <KV k="Reporter"><span style={{ color: 'hsl(var(--muted-foreground))' }}>{t.createdBy || 'Site contact'}</span></KV>
-          <KV k="Reporter Phone"><span style={{ color: 'hsl(var(--muted-foreground))' }}>0412 345 678</span></KV>
-          <KV k="Reporter Email"><span style={{ color: 'hsl(var(--muted-foreground))' }}>contact@client.com.au</span></KV>
           <KV k="Asset"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><IdChip id="EG-0042" /><span style={{ color: 'hsl(var(--muted-foreground))' }}>Assets ({t.assets})</span><PreviewPill /></span></KV>
           <KV k="Linked Project">{t.prj ? <IdChip id={t.prj} /> : <PendingDash />}</KV>
           <KV k="Cost Centre">{t.cc ? <IdChip id={t.cc} /> : <PendingDash />}</KV>
@@ -246,6 +384,16 @@ function TicketDetail({ ticket }) {
           <KV k="Due Date"><span style={{ color: t.overdue ? 'hsl(var(--destructive))' : 'inherit', fontWeight: t.overdue ? 600 : 500 }}>{t.due}, <SiteTime time={t.dueT} zone={siteZoneFor(t.client)} oneline primaryColor={t.overdue ? 'hsl(var(--destructive))' : undefined} /></span></KV>
           <KV k="Assigned To"><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><IdChip id="USR-000012" /><Avatar name={t.assignee} size={20} />{t.assignee}</span></KV>
         </div>
+        {!noSite && info.prevTickets && <div style={{ borderTop: '1px solid hsl(var(--border))', paddingTop: 11, marginTop: 9 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}><Icon name="history" size={14} color="hsl(var(--muted-foreground))" /><span style={{ fontSize: 12, fontWeight: 700 }}>Previous tickets at this site</span><span style={{ fontSize: 11, fontWeight: 700, color: 'hsl(var(--muted-foreground))', background: 'hsl(var(--muted))', borderRadius: 999, padding: '0 7px' }}>{info.prevTickets.length}</span></div>
+          {info.prevTickets.map((h, i) => { const [id, ...rest] = h.split(' · ');
+            return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 12, borderBottom: i < info.prevTickets.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
+              <IdChip id={id} /><span style={{ color: 'hsl(var(--muted-foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rest.join(' · ')}</span></div>; })}
+          <div style={{ display: 'flex', gap: 14, marginTop: 9, fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="box" size={12} />{info.assets} assets at site</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="wrench" size={12} />{info.openTickets} open ticket{info.openTickets === 1 ? '' : 's'}</span>
+          </div>
+        </div>}
         {/* ownership / routing — BU + status real (read-only); only Likely Owner is auto-suggested */}
         <div style={{ marginTop: 11 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}><span style={{ fontSize: 12, fontWeight: 600 }}>Ownership &amp; Routing</span></div>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ETG — Technician Portal</title>
+<link rel="icon" href="assets/etg-mark.svg">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="colors_and_type.css">
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { font-family: var(--font-sans); color: hsl(var(--foreground)); -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(1100px 700px at 50% -10%, hsl(215 35% 22%), transparent),
+      linear-gradient(160deg, hsl(222 47% 11%), hsl(215 40% 16%));
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 22px; padding: 40px 20px 56px; width: 100%; max-width: 520px; }
+  /* back-to-dashboard link (cross-surface navigation in the demo) */
+  .back { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600;
+    color: hsl(215 25% 78%); text-decoration: none; background: hsl(215 35% 20% / 0.6); border: 1px solid hsl(215 30% 30%);
+    padding: 7px 13px; border-radius: 999px; transition: color .12s, background .12s; }
+  .back:hover { color: #fff; background: hsl(215 35% 24% / 0.8); }
+  .back svg { width: 15px; height: 15px; }
+  .cap { text-align: center; color: #fff; }
+  .cap h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; display: inline-flex; align-items: center; gap: 10px; }
+  .cap p { font-size: 13.5px; color: hsl(215 25% 72%); margin: 0; max-width: 460px; line-height: 1.5; }
+  .cap .mark { width: 30px; height: 30px; }
+  .hint { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: hsl(215 25% 70%); background: hsl(215 35% 20% / 0.6); border: 1px solid hsl(215 30% 30%); padding: 6px 12px; border-radius: 999px; text-align: center; }
+  /* phone content uses Inter, not SF, so it matches the ETG product */
+  #portal-root > div { font-family: var(--font-sans) !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    ETG Dashboard
+  </a>
+  <div class="cap">
+    <h1><img class="mark" src="assets/etg-mark.svg" alt="ETG">Technician Portal</h1>
+    <p>The field-worker view — scoped to one technician. Clock on/off drives billable labour, and a job can't be completed until photos, checklists and client sign-off are done. Financials stay hidden.</p>
+  </div>
+  <div id="portal-root"></div>
+  <div class="hint"><span style="width:7px;height:7px;border-radius:50%;background:hsl(var(--success));display:inline-block;"></span>Tap a job → Start travel → Arrive → Clock on → complete the checklist, photos &amp; sign-off → Clock off</div>
+</div>
+
+<script type="text/babel" src="etg-ui.jsx"></script>
+<script type="text/babel" src="etg-tz.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="etg-mobile.jsx"></script>
+<script type="text/babel" src="etg-mobile-sheets.jsx"></script>
+<script type="text/babel" src="etg-mobile-app.jsx"></script>
+</body>
+</html>

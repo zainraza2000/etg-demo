@@ -8,7 +8,7 @@ function CtLabel({ children, req }) {
 function CtField({ label, req, children }) {
   return <div><CtLabel req={req}>{label}</CtLabel>{children}</div>;
 }
-const ctInput = { width: '100%', height: 42, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '0 12px', boxSizing: 'border-box', fontSize: 14, fontFamily: 'inherit', background: 'hsl(var(--card))', color: 'hsl(var(--foreground))' };
+const ctInput = { width: '100%', minWidth: 0, height: 42, border: '1px solid hsl(var(--input))', borderRadius: 8, padding: '0 12px', boxSizing: 'border-box', fontSize: 14, fontFamily: 'inherit', background: 'hsl(var(--card))', color: 'hsl(var(--foreground))' };
 function CtText({ value, placeholder, sub }) {
   return <div><input defaultValue={value} placeholder={placeholder} style={ctInput} />{sub && <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>{sub}</div>}</div>;
 }
@@ -72,6 +72,81 @@ function VerifyRow({ label, last }) {
     <ActivePill /></div>;
 }
 
+// ---- controlled cascading select (Customer → Site → Job) -------------------
+function CSelect({ value, options, onChange, placeholder, icon, sub, disabled, accent }) {
+  const [open, setOpen] = useStateCT(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => { if (!open) return; const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }; document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close); }, [open]);
+  return <div ref={ref} style={{ position: 'relative' }}>
+    <div onClick={() => !disabled && setOpen((o) => !o)} style={{ ...ctInput, display: 'flex', alignItems: 'center', gap: 8, cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1, borderColor: accent ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--input))' }}>
+      {icon && <Icon name={icon} size={16} color="hsl(var(--muted-foreground))" />}
+      <span style={{ flex: 1, color: value ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value || placeholder || 'Select…'}</span>
+      <Icon name="chevron-down" size={16} color="hsl(var(--muted-foreground))" style={{ transform: open ? 'rotate(180deg)' : 'none' }} /></div>
+    {open && <div style={{ position: 'absolute', top: 44, left: 0, right: 0, zIndex: 50, maxHeight: 240, overflowY: 'auto', background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 9, boxShadow: 'var(--shadow-lg)', padding: 4 }}>
+      {options.length === 0 && <div style={{ padding: '8px 10px', fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}>No options — pick the parent first.</div>}
+      {options.map((o) => { const val = typeof o === 'string' ? o : o.value; const s = typeof o === 'string' ? null : o.sub;
+        return <div key={val} onClick={() => { onChange(val); setOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13.5, background: val === value ? 'hsl(var(--muted))' : 'transparent' }}>
+          <span style={{ width: 14, flexShrink: 0 }}>{val === value && <Icon name="check" size={14} color="hsl(var(--primary))" />}</span>
+          <span style={{ minWidth: 0 }}><span style={{ display: 'block' }}>{val}</span>{s && <span style={{ display: 'block', fontSize: 11, color: 'hsl(var(--muted-foreground))' }}>{s}</span>}</span></div>; })}
+    </div>}
+    {sub && <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>{sub}</div>}
+  </div>;
+}
+
+// ---- live Customer → Site → Job/Ticket cascade (auto-fill + validation) ----
+const _norm = (s) => (s || '').replace(/\./g, '').trim();
+function CascadeCustomerSite() {
+  const sitesByCustomer = {};
+  Object.keys(SITES || {}).forEach((k) => { const [c, s] = k.split('|'); (sitesByCustomer[c] = sitesByCustomer[c] || []).push(s); });
+  const customers = Object.keys(sitesByCustomer);
+  const [customer, setCustomer] = useStateCT(customers[0] || '');
+  const [site, setSite] = useStateCT((sitesByCustomer[customers[0]] || [])[0] || '');
+  const [job, setJob] = useStateCT('');
+  const sites = sitesByCustomer[customer] || [];
+  const info = (typeof siteInfo === 'function' ? siteInfo(customer, site) : null) || {};
+  const jobOpts = (typeof FIELD_JOBS !== 'undefined' ? FIELD_JOBS : []).filter((j) => _norm(j.client) === _norm(customer) && _norm(j.site) === _norm(site)).map((j) => ({ value: `${j.fj} – ${j.title}`, sub: 'auto-fills site' }));
+  function pickCustomer(c) { setCustomer(c); const s = (sitesByCustomer[c] || [])[0] || ''; setSite(s); setJob(''); }
+  function pickSite(s) { setSite(s); setJob(''); }
+  function pickJob(j) { setJob(j); const fj = (typeof FIELD_JOBS !== 'undefined' ? FIELD_JOBS : []).find((x) => j.startsWith(x.fj)); if (fj) setSite(fj.site); } // job auto-fills site
+  const noSite = !site;
+  return (
+    <div style={{ display: 'flex', gap: 22 }}>
+      <div style={{ flex: 1 }}>
+        {/* breadcrumb: makes the Customer → Site → Job relationship explicit */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 12px', background: 'hsl(var(--primary-subtle) / 0.5)', border: '1px solid hsl(var(--primary) / 0.2)', borderRadius: 9, marginBottom: 16, fontSize: 12.5 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 600 }}><Icon name="building-2" size={13} color="hsl(var(--primary))" />{customer}</span>
+          <Icon name="chevron-right" size={13} color="hsl(var(--muted-foreground))" />
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 600, color: noSite ? 'hsl(var(--warning))' : 'inherit' }}><Icon name="map-pin" size={13} color={noSite ? 'hsl(var(--warning))' : 'hsl(var(--primary))'} />{site || 'Site required'}</span>
+          {job && <React.Fragment><Icon name="chevron-right" size={13} color="hsl(var(--muted-foreground))" /><span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 600 }}><Icon name="wrench" size={13} color="hsl(var(--primary))" />{job.split(' – ')[0]}</span></React.Fragment>}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+          <CtField label="Customer" req><CSelect value={customer} options={customers} onChange={pickCustomer} icon="building-2" sub={`${customers.length} customers`} /></CtField>
+          <CtField label="Site" req><CSelect value={site} options={sites} onChange={pickSite} icon="map-pin" placeholder="Select a site…" accent sub={`Filtered to ${customer}'s ${sites.length} site${sites.length === 1 ? '' : 's'}`} /></CtField>
+          <CtField label="Linked Job / Ticket"><CSelect value={job} options={jobOpts} onChange={pickJob} icon="wrench" placeholder={jobOpts.length ? 'Optional — auto-fills site' : 'No jobs at this site'} sub={job ? 'Site auto-filled from job' : `${jobOpts.length} at this site`} /></CtField>
+          <CtField label="Site Address"><div style={{ ...ctInput, display: 'flex', alignItems: 'center', height: 'auto', minHeight: 42, padding: '8px 12px', background: 'hsl(var(--muted) / 0.4)', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>{info.address || '—'}</div></CtField>
+          <CtField label="Site Contact"><div style={{ ...ctInput, display: 'flex', alignItems: 'center', background: 'hsl(var(--muted) / 0.4)', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>{info.contact || '—'}{info.role ? ' · ' + info.role : ''}</div></CtField>
+          <CtField label="Contact Phone"><div style={{ ...ctInput, display: 'flex', alignItems: 'center', background: 'hsl(var(--muted) / 0.4)', color: 'hsl(var(--muted-foreground))', fontSize: 13 }}>{info.phone || '—'}</div></CtField>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 12, fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}>
+          <Icon name="info" size={13} />Pick the customer first → sites filter to that customer → jobs filter to that site. Contact &amp; address auto-fill from the site. A linked job auto-fills the site.
+        </div>
+        {noSite && <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: 'hsl(var(--warning-subtle))', border: '1px solid hsl(var(--warning) / 0.3)', fontSize: 12.5, fontWeight: 600, color: 'hsl(28 80% 38%)' }}><Icon name="triangle-alert" size={14} />Site is required before this ticket can leave triage.</div>}
+      </div>
+      <div style={{ width: 250, flexShrink: 0, border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 15, background: 'hsl(var(--muted) / 0.35)' }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 11 }}>Site Overview</div>
+        <OvRow k="Site" v={site || '—'} />
+        <OvRow k="Open Tickets" v={info.openTickets != null ? String(info.openTickets) : '—'} />
+        <OvRow k="Assets (This Site)" v={info.assets != null ? String(info.assets) : '—'} />
+        <OvRow k="Site Access" v={info.access ? 'On file' : '—'} />
+        {info.prevTickets && <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid hsl(var(--border))' }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))', marginBottom: 6 }}>Recent at this site</div>
+          {info.prevTickets.slice(0, 2).map((h, i) => <div key={i} style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', padding: '2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</div>)}
+        </div>}
+      </div>
+    </div>
+  );
+}
+
 function CreateTicketScreen({ onClose }) {
   return (
     <div>
@@ -122,25 +197,7 @@ function CreateTicketScreen({ onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Section 1 */}
         <CtSection n="1" title="Customer & Site">
-          <div style={{ display: 'flex', gap: 22 }}>
-            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-              <CtField label="Customer" req><div><div style={{ marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(258 60% 50%)', fontWeight: 500, cursor: 'pointer' }}><Icon name="plus" size={12} />New customer<Icon name="sparkles" size={10} /></div><CtSelect value="ABC Corporate" sub="ABN: 12 345 678 910" /></div></CtField>
-              <CtField label="Contact Name" req><div><div style={{ marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(var(--primary))', fontWeight: 500, cursor: 'pointer' }}><Icon name="user-search" size={12} />Link existing contact</div><CtText value="Sarah Johnson" /></div></CtField>
-              <CtField label="Phone" req><CtText value="0412 345 678" /></CtField>
-              <CtField label="Site" req><div><div style={{ marginBottom: 5, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'hsl(258 60% 50%)', fontWeight: 500, cursor: 'pointer' }}><Icon name="plus" size={12} />New site<Icon name="sparkles" size={10} /></div><CtSelect value="Sydney Office" sub="123 George Street, Sydney NSW 2000" /></div></CtField>
-              <CtField label="Email"><CtText value="sarah.johnson@abccorp.com.au" /></CtField>
-              <CtField label="Contact Role"><CtSelect value="IT Manager" /></CtField>
-            </div>
-            <div style={{ width: 250, flexShrink: 0, border: '1px solid hsl(var(--border))', borderRadius: 10, padding: 15, background: 'hsl(var(--muted) / 0.35)' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 11 }}>Customer Overview</div>
-              <OvRow k="Customer Group" v="ABC Corporate Group" />
-              <OvRow k="Localcom Customer" yes />
-              <OvRow k="Evolution Customer" yes />
-              <OvRow k="Active Services (This Site)" v="8" />
-              <OvRow k="Active Assets (This Site)" v="24" />
-              <div style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 5, color: 'hsl(var(--primary))', fontSize: 12.5, fontWeight: 500, cursor: 'pointer' }}>View Customer Details <Icon name="external-link" size={13} /></div>
-            </div>
-          </div>
+          <CascadeCustomerSite />
         </CtSection>
 
         {/* Section 2 */}

@@ -23,7 +23,7 @@ const KPI_COLORS = {
   slate:  'hsl(var(--status-invoiced))',
   teal:   'hsl(var(--accent))',
 };
-function statusStyle(status) {
+function statusStyle(status, tone) {
   const s = (status || '').toLowerCase();
   const map = {
     'in progress': 'active', 'open': 'active', 'active': 'active',
@@ -34,7 +34,7 @@ function statusStyle(status) {
     'complete': 'complete', 'resolved': 'complete', 'online': 'complete',
     'invoiced': 'invoiced',
   };
-  const key = map[s] || 'active';
+  const key = tone || map[s] || 'active';
   const v = `var(--status-${key})`;
   return { background: `hsl(${v} / 0.13)`, color: `hsl(${v})`, border: `1px solid hsl(${v} / 0.30)` };
 }
@@ -95,9 +95,11 @@ function Button({ variant = 'primary', size = 'md', icon, children, onClick, sty
 }
 
 // ---- Status / Priority badges ---------------------------------------------
-function StatusBadge({ status }) {
-  return <span style={{ ...statusStyle(status), display: 'inline-flex', alignItems: 'center',
-    padding: '2px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{status}</span>;
+// `tone` overrides the status→colour lookup for screen-specific vocabularies
+// (e.g. "Potential Match" → active). `compact` tightens it for dense tables.
+function StatusBadge({ status, tone, compact }) {
+  return <span style={{ ...statusStyle(status, tone), display: 'inline-flex', alignItems: 'center',
+    padding: compact ? '2px 9px' : '2px 10px', borderRadius: 999, fontSize: compact ? 11 : 12, fontWeight: 600, whiteSpace: 'nowrap' }}>{status}</span>;
 }
 function PriorityBadge({ priority }) {
   const c = { High: 'hsl(var(--destructive))', Medium: 'hsl(var(--warning))', Low: 'hsl(var(--success))' }[priority];
@@ -123,23 +125,37 @@ function ProgressBar({ value, color = 'hsl(var(--primary))', width = 120 }) {
 }
 
 // ---- KPI card + strip ------------------------------------------------------
-function KpiCard({ title, value, sub, icon, color, onClick, active }) {
+// Unified KPI card used across every screen. Bottom-line modes (pick one):
+//  · sub      — a primary-coloured action link ("View all", "View report")
+//  · tag      — a maturity pill node (ReadOnlyTag / PreviewPill / UpcomingPill)
+//  · filter   — renders a "Click to filter" affordance (workflow filter cards)
+// Optional `caption` adds a muted supporting line above the bottom element.
+// `value == null` renders an em dash (engine value not yet computed).
+// `valueMuted` greys the number; `iconOpacity` dims the colour chip; `basis`
+// is the flex grow-basis used for wrap behaviour.
+function KpiCard({ title, value, sub, caption, tag, filter, icon, color, valueSize = 24, valueMuted = false, iconOpacity = 1, basis = 0, onClick, active }) {
   const clickable = !!onClick;
   return (
     <div onClick={onClick} style={{ background: active ? 'hsl(var(--primary-subtle))' : 'hsl(var(--card))', border: `1px solid ${active ? 'hsl(var(--primary) / 0.4)' : 'hsl(var(--border))'}`, borderRadius: 12,
-      padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', gap: 13, alignItems: 'flex-start', cursor: clickable ? 'pointer' : 'default' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={22} color="#fff" /></div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{title}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.1, margin: '3px 0 4px', letterSpacing: '-0.02em' }}>{value}</div>
-        <div style={{ fontSize: 12.5, fontWeight: 500, color: 'hsl(var(--primary))', cursor: clickable ? 'pointer' : 'default' }}>{sub}</div>
+      flex: `1 1 ${basis}px`, minWidth: 0, padding: 14, boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', cursor: clickable ? 'pointer' : 'default' }}>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: KPI_COLORS[color], flexShrink: 0, opacity: iconOpacity, marginBottom: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name={icon} size={20} color="#fff" /></div>
+      <div title={value == null ? '—' : String(value)} style={{ fontSize: valueSize, fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.02em', color: valueMuted ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value == null ? '—' : value}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>{title}</div>
+      {caption != null && <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 4 }}>{caption}</div>}
+      <div style={{ marginTop: 'auto', paddingTop: 6, minWidth: 0, overflow: 'hidden' }}>
+        {tag ? tag
+          : filter ? <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 500, color: 'hsl(var(--primary))' }}><Icon name="filter" size={11} />Click to filter</div>
+          : sub != null ? <div style={{ fontSize: 12, fontWeight: 500, color: 'hsl(var(--primary))', cursor: clickable ? 'pointer' : 'default', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</div>
+          : null}
       </div>
     </div>
   );
 }
+// KPI cards lay out in a single non-wrapping row; cards share width (flex 1 1 0,
+// minWidth 0) and shrink to fit instead of dropping to a second row.
 function KpiStrip({ items }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${items.length}, 1fr)`, gap: 14 }}>
+  return <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 12 }}>
     {items.map((k, i) => <KpiCard key={i} {...k} />)}</div>;
 }
 
@@ -287,6 +303,28 @@ function IdChip({ id, note }) {
 // Quiet em-dash placeholder for a not-yet-computed engine value.
 function PendingDash() { return <span style={{ color: 'hsl(var(--muted-foreground))' }}>—</span>; }
 // Dashed "Calculating…" card for an engine output with nothing to show yet.
+// ---- Site context header — Customer → Site → Job/Ticket (the core link) ----
+// Makes the hierarchy instantly clear at the top of any work item.
+function SiteContextHeader({ customer, site, address, contact, link, tech, needsSite }) {
+  const cell = (icon, label, value, accent) => <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+    <Icon name={icon} size={15} color="hsl(var(--muted-foreground))" style={{ marginTop: 2, flexShrink: 0 }} />
+    <div style={{ minWidth: 0 }}><div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))' }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, marginTop: 1, color: accent || 'hsl(var(--foreground))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>
+  </div>;
+  return <div style={{ border: '1px solid hsl(var(--border))', borderLeft: '3px solid hsl(var(--primary))', borderRadius: 10, background: 'hsl(var(--primary-subtle) / 0.4)', padding: '11px 14px', marginBottom: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, alignItems: 'start' }}>
+      {cell('building-2', 'Customer', customer || '—')}
+      {needsSite
+        ? cell('map-pin', 'Site', <span style={{ color: 'hsl(var(--warning))' }}>Site required</span>, 'hsl(var(--warning))')
+        : cell('map-pin', 'Site', site || '—')}
+      {cell('navigation', 'Address', address || '—')}
+      {link && cell('link', 'Linked Job / Ticket', link)}
+      {contact && cell('user', 'Site Contact', contact)}
+      {tech && cell('hard-hat', 'Assigned Tech', tech)}
+    </div>
+  </div>;
+}
+
 function CalculatingCard({ note, height }) {
   return <div style={{ border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted) / 0.4)', borderRadius: 10, padding: 14, textAlign: 'center', minHeight: height }}>
     <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: 'hsl(var(--muted-foreground))' }}>—</div>
@@ -295,7 +333,53 @@ function CalculatingCard({ note, height }) {
   </div>;
 }
 
+// ---- Row action menu (kebab) — shared across dense tables ------------------
+// `items`: [{ icon, label, onClick, up (Upcoming), danger, divider:true }].
+// Fixed-positioned so it escapes overflow:hidden table cards; closes on outside
+// click, Escape, scroll or resize.
+function RowMenu({ items, size = 16, align = 'right' }) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState(null);
+  function toggle(e) { e.stopPropagation(); setRect(e.currentTarget.getBoundingClientRect()); setOpen((o) => !o); }
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const key = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('scroll', close, true); window.addEventListener('resize', close); document.addEventListener('keydown', key);
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close); document.removeEventListener('keydown', key); };
+  }, [open]);
+  const W = 212;
+  const left = rect ? (align === 'right' ? Math.min(rect.right - W, window.innerWidth - W - 8) : Math.min(rect.left, window.innerWidth - W - 8)) : 0;
+  let top = rect ? rect.bottom + 5 : 0;
+  const estH = (items || []).length * 34 + 8;
+  if (rect && top + estH > window.innerHeight - 8) top = Math.max(8, rect.top - estH - 5);
+  return (
+    <React.Fragment>
+      <button onClick={toggle} aria-label="Row actions" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7,
+        border: '1px solid transparent', background: open ? 'hsl(var(--muted))' : 'transparent', cursor: 'pointer', color: 'hsl(var(--muted-foreground))' }}
+        onMouseEnter={(e) => { if (!open) e.currentTarget.style.background = 'hsl(var(--muted))'; }} onMouseLeave={(e) => { if (!open) e.currentTarget.style.background = 'transparent'; }}>
+        <Icon name="more-vertical" size={size} />
+      </button>
+      {open && <React.Fragment>
+        <div onClick={(e) => { e.stopPropagation(); setOpen(false); }} style={{ position: 'fixed', inset: 0, zIndex: 1200 }} />
+        <div style={{ position: 'fixed', top, left, width: W, zIndex: 1201, background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 10, boxShadow: 'var(--shadow-xl)', padding: 5 }}>
+          {(items || []).map((it, i) => it.divider
+            ? <div key={i} style={{ height: 1, background: 'hsl(var(--border))', margin: '5px 6px' }} />
+            : <button key={i} onClick={(e) => { e.stopPropagation(); setOpen(false); it.onClick && it.onClick(); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500, padding: '7px 9px', borderRadius: 7, color: it.danger ? 'hsl(var(--destructive))' : 'hsl(var(--foreground))' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'hsl(var(--muted))'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                <Icon name={it.icon} size={14} color={it.danger ? 'hsl(var(--destructive))' : 'hsl(var(--muted-foreground))'} />
+                <span style={{ flex: 1 }}>{it.label}</span>
+                {it.up && <Icon name="sparkles" size={11} color="hsl(258 70% 60%)" />}
+              </button>)}
+        </div>
+      </React.Fragment>}
+    </React.Fragment>
+  );
+}
+
 Object.assign(window, { Icon, Avatar, Button, StatusBadge, PriorityBadge, RiskBadge, HealthChip, ProgressBar,
-  KpiCard, KpiStrip, PageHeader, FilterBar, Select, SearchInput, ViewToggle, Pagination, PageBtn, Panel,
-  UpcomingPill, PreviewPill, ReadOnlyTag, IdChip, PendingDash, CalculatingCard,
+  KpiCard, KpiStrip, PageHeader, FilterBar, Select, SearchInput, ViewToggle, Pagination, PageBtn, Panel, RowMenu,
+  UpcomingPill, PreviewPill, ReadOnlyTag, IdChip, PendingDash, CalculatingCard, SiteContextHeader,
   KPI_COLORS, statusStyle, healthColor, marginColor, initials });

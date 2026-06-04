@@ -158,6 +158,14 @@ function TopBar({ collapsed }) {
           background: 'hsl(215 35% 17%)', border: '1px solid hsl(var(--sidebar-border))', borderRadius: 9, color: '#fff', fontSize: 14, fontFamily: 'inherit' }} />
       </div>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 18 }}>
+        <a href="technician-portal.html" title="Open the mobile field app (technician view)"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 38, padding: '0 14px', borderRadius: 999,
+            background: 'hsl(215 35% 17%)', border: '1px solid hsl(var(--sidebar-border))', color: 'hsl(215 25% 82%)',
+            fontSize: 13, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'hsl(215 35% 22%)'; e.currentTarget.style.color = '#fff'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'hsl(215 35% 17%)'; e.currentTarget.style.color = 'hsl(215 25% 82%)'; }}>
+          <Icon name="smartphone" size={16} />Technician Portal
+        </a>
         <Icon name="help-circle" size={20} color="hsl(215 20% 70%)" />
         <div style={{ position: 'relative' }}>
           <Icon name="bell" size={20} color="hsl(215 20% 70%)" />
