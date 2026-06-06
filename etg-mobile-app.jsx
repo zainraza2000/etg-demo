@@ -22,10 +22,21 @@ const UP_NEXT = [
 // ---- state seed ------------------------------------------------------------
 function initJs() {
   const o = {};
-  MJOBS.forEach((j) => { o[j.id] = { state: 'Offered', clockStart: null, clockedSec: 0, checks: {}, photos: {}, materials: j.materials.map((m) => ({ ...m })), notes: '', signed: false, blockedReason: null, submitted: false, assets: {}, travelMin: 0, breakMin: 0, ot: false, tsNotes: '' }; });
+  MJOBS.forEach((j) => { o[j.id] = { state: 'Offered', clockStart: null, clockedSec: 0, checks: {}, photos: {}, materials: j.materials.map((m) => ({ ...m })), notes: '', signed: false, blockedReason: null, submitted: false, assets: {}, travelStart: null, travelMin: 0, breakStart: null, breakMin: 0, breakReason: null, otFlagged: false, tsNotes: '', adjustments: [] }; });
   return o;
 }
 function loadJs() { try { const r = JSON.parse(localStorage.getItem(PORTAL_KEY)); if (r && r.js) return r.js; } catch (e) {} return initJs(); }
+
+// ---- pre-start gate: required pre-start + safety items left before Clock On (P2)
+function prestartGate(job, j) {
+  const groups = [];
+  job.checklists.filter((g) => g.key === 'prestart' || g.key === 'safety').forEach((g) => {
+    const checks = j.checks[g.key] || {};
+    const left = g.items.filter((it, i) => it.req && !checks[i]).length;
+    if (left) groups.push({ key: g.key, label: g.label, icon: g.icon, left, items: g.items.filter((it, i) => it.req && !checks[i]).map((it) => it.label) });
+  });
+  return groups;
+}
 
 // ---- enforcement: what's left before a job can complete --------------------
 function outstandingFor(job, j) {
@@ -45,15 +56,22 @@ function ActionBar({ job, j, ctx }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><Icon name="octagon-alert" size={16} color="hsl(var(--destructive))" /><span style={{ fontSize: 13, fontWeight: 600, color: 'hsl(var(--destructive))' }}>Blocked · {j.blockedReason}</span></div>
     <MBtn variant="outline" full icon="rotate-ccw" onClick={() => ctx.unblock(job.id)}>Resume — issue resolved</MBtn></div>;
   if (s === 'Offered') return <div style={wrap}><MBtn variant="primary" full icon="check" onClick={() => ctx.accept(job.id)}>Accept job</MBtn></div>;
-  if (s === 'Accepted') return <div style={wrap}><MBtn variant="primary" full icon="navigation" onClick={() => ctx.setStage(job.id, 'Travelling')}>Start travel to site</MBtn></div>;
-  if (s === 'Travelling') return <div style={wrap}><MBtn variant="primary" full icon="map-pin" onClick={() => ctx.setStage(job.id, 'On site')}>Arrive on site</MBtn></div>;
-  if (s === 'On site') return <div style={wrap}>
-    <MBtn variant="success" full icon="play" onClick={() => ctx.clockOn(job.id)} style={{ marginBottom: 9 }}>Clock on &amp; start work</MBtn>
-    <MBtn variant="ghost" full size="sm" icon="octagon-alert" onClick={() => ctx.setBlockedFor(job.id)}>Mark blocked</MBtn></div>;
+  if (s === 'Accepted') return <div style={wrap}><MBtn variant="primary" full icon="navigation" onClick={() => ctx.startTravel(job.id)}>Start travel to site</MBtn></div>;
+  if (s === 'Travelling') return <div style={wrap}><MBtn variant="primary" full icon="map-pin" onClick={() => ctx.arrive(job.id)}>Arrive on site</MBtn></div>;
+  if (s === 'On site') { const gate = prestartGate(job, j); const blocked = gate.length > 0;
+    const reasons = gate.flatMap((g) => g.items).slice(0, 3);
+    return <div style={wrap}>
+      {blocked && <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10, padding: '9px 11px', borderRadius: 10, background: 'hsl(var(--destructive) / 0.07)', border: '1px solid hsl(var(--destructive) / 0.22)' }}>
+        <Icon name="octagon-alert" size={15} color="hsl(var(--destructive))" style={{ flexShrink: 0, marginTop: 1 }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--destructive))', lineHeight: 1.4 }}>Cannot clock on because: {reasons.join(' · ')}</span></div>}
+      {blocked
+        ? <MBtn variant="danger" full icon="octagon-alert" onClick={() => ctx.setGateFor(job.id)} style={{ marginBottom: 9 }}>Resolve blockers · {gate.reduce((n, g) => n + g.left, 0)} left</MBtn>
+        : <MBtn variant="success" full icon="play" onClick={() => ctx.clockOn(job.id)} style={{ marginBottom: 9 }}>Clock on &amp; start work</MBtn>}
+      <MBtn variant="ghost" full size="sm" icon="octagon-alert" onClick={() => ctx.setBlockedFor(job.id)}>Mark blocked</MBtn></div>; }
   if (s === 'In progress') { const n = outstandingFor(job, j).length;
     return <div style={wrap}>
       <MBtn variant="success" full icon="square-check" onClick={() => ctx.attemptComplete(job.id)} style={{ marginBottom: 9 }}>Clock off &amp; complete{n > 0 && <span style={{ fontWeight: 600, opacity: 0.85 }}>· {n} left</span>}</MBtn>
-      <div style={{ display: 'flex', gap: 9 }}><MBtn variant="ghost" full size="sm" icon="pause" onClick={() => ctx.pause(job.id)}>Pause</MBtn><MBtn variant="ghost" full size="sm" icon="octagon-alert" onClick={() => ctx.setBlockedFor(job.id)}>Blocked</MBtn></div></div>; }
+      <div style={{ display: 'flex', gap: 9 }}><MBtn variant="ghost" full size="sm" icon="pause" onClick={() => ctx.setBreakFor(job.id)}>Pause / break</MBtn><MBtn variant="ghost" full size="sm" icon="octagon-alert" onClick={() => ctx.setBlockedFor(job.id)}>Blocked</MBtn></div></div>; }
   if (s === 'Paused') return <div style={wrap}>
     <MBtn variant="success" full icon="play" onClick={() => ctx.resume(job.id)} style={{ marginBottom: 9 }}>Resume work</MBtn>
     <MBtn variant="ghost" full size="sm" icon="octagon-alert" onClick={() => ctx.setBlockedFor(job.id)}>Mark blocked</MBtn></div>;
@@ -61,6 +79,38 @@ function ActionBar({ job, j, ctx }) {
   if (s === 'Submitted') return <div style={wrap}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: 52, borderRadius: 12, background: 'hsl(var(--success) / 0.1)', color: 'hsl(var(--success))', fontSize: 15, fontWeight: 700 }}><Icon name="circle-check-big" size={19} />Timesheet submitted</div></div>;
   return null;
+}
+
+// ---- travel card (P1) — distinct from billable labour --------------------
+function TravelCard({ job, j, ctx }) {
+  const secs = ctx.travelElapsed(job.id);
+  const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+  const ss = String(Math.floor(secs % 60)).padStart(2, '0');
+  return <div style={{ marginBottom: 14, borderRadius: 14, padding: 16, background: 'hsl(var(--warning) / 0.07)', border: '1px solid hsl(var(--warning) / 0.32)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(28 80% 40%)' }}>
+        <Icon name="car-front" size={15} />On the way to site</span>
+      <Icon name="timer" size={16} color="hsl(var(--warning))" /></div>
+    <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', lineHeight: 1.05, color: 'hsl(28 80% 40%)' }}>Travelling {mm}:{ss}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'hsl(var(--muted-foreground))' }}><Icon name="play" size={12} />Started {j.travelStartLabel || '7:22 AM'}</span>
+      {job.eta && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 600, color: 'hsl(var(--foreground))' }}><Icon name="flag" size={12} color="hsl(var(--muted-foreground))" />ETA {job.eta}</span>}
+    </div>
+    <div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 8, paddingTop: 10, borderTop: '1px solid hsl(var(--warning) / 0.2)' }}>Travel time is tracked separately — billable labour only starts when you clock on.</div>
+  </div>;
+}
+// arrival-update card (P1) — reuses the saved site contact
+function ArrivalCard({ job, ctx }) {
+  return <MCard pad={14} style={{ marginBottom: 22, background: 'hsl(var(--primary) / 0.04)', border: '1px solid hsl(var(--primary) / 0.2)' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <span style={{ width: 40, height: 40, borderRadius: 11, background: 'hsl(var(--primary) / 0.1)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="bell-ring" size={19} color="hsl(var(--primary))" /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700 }}>Attendance update</div>
+        <div style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', marginTop: 2, lineHeight: 1.45 }}>Let {job.contact} know you're on the way{job.eta ? ` — ETA ${job.eta}` : ''}. Sends to the site contact on file.</div>
+      </div>
+    </div>
+    <div style={{ marginTop: 12 }}><MBtn variant="subtle" full icon="send" onClick={() => ctx.flash('Arrival update sent to ' + job.contact)}>Send arrival update</MBtn></div>
+  </MCard>;
 }
 
 // ---- clock card ------------------------------------------------------------
@@ -80,23 +130,30 @@ function ClockCard({ j, elapsed }) {
 }
 
 // ---- time breakdown (gap 2) ------------------------------------------------
-function Stepper({ value, onChange, suffix }) {
-  return <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-    <button className="m-press" onClick={() => onChange(Math.max(0, value - 15))} style={{ width: 38, height: 38, borderRadius: 10, border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="minus" size={16} /></button>
-    <span style={{ minWidth: 64, textAlign: 'center', fontSize: 15.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}{suffix}</span>
-    <button className="m-press" onClick={() => onChange(value + 15)} style={{ width: 38, height: 38, borderRadius: 10, border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="plus" size={16} /></button>
-  </div>;
-}
-function TimeBreakdown({ job, j, ctx }) {
-  const row = (label, sub, control) => <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid hsl(var(--border))' }}>
-    <div style={{ flex: 1 }}><div style={{ fontSize: 14.5, fontWeight: 600 }}>{label}</div><div style={{ fontSize: 12, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{sub}</div></div>{control}</div>;
+// ---- live time summary (P5) — read-only, derived from clock actions --------
+function LiveTimeSummary({ job, j, ctx }) {
+  const row = (icon, label, value, sub) => <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '11px 0', borderBottom: '1px solid hsl(var(--border))' }}>
+    <Icon name={icon} size={17} color="hsl(var(--muted-foreground))" style={{ flexShrink: 0, marginTop: 1 }} />
+    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{label}</div><div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{sub}</div></div>
+    <span style={{ fontSize: 15.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{value}</span></div>;
   return <MCard pad={16}>
-    {row('Travel', 'To and from site', <Stepper value={j.travelMin} onChange={(v) => ctx.setTime(job.id, 'travelMin', v)} suffix="m" />)}
-    {row('Labour', 'From your clock', <span style={{ fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{mHm(ctx.elapsed(job.id))}</span>)}
-    {row('Break', 'Unpaid', <Stepper value={j.breakMin} onChange={(v) => ctx.setTime(job.id, 'breakMin', v)} suffix="m" />)}
-    <div style={{ paddingTop: 12 }}><MToggle on={j.ot} onChange={(v) => ctx.setTime(job.id, 'ot', v)} label="Overtime" sub={j.ot ? 'Flagged for payroll review' : 'Flag if this ran into overtime'} /></div>
-    <div style={{ marginTop: 12 }}><MLabel>Timesheet note</MLabel><textarea value={j.tsNotes} onChange={(e) => ctx.setTime(job.id, 'tsNotes', e.target.value)} placeholder="Anything payroll should know…" style={{ ...M_INPUT, minHeight: 60, padding: 12, resize: 'none' }} /></div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10, fontSize: 11.5, color: 'hsl(var(--muted-foreground))' }}><Icon name="info" size={13} />Feeds payroll &amp; job costing in the office.</div>
+    {row('map-pinned', 'On site', mHm(ctx.onSiteElapsed(job.id)), 'From Arrive → now')}
+    {row('clock', 'Billable labour', mHm(ctx.elapsed(job.id)), 'Clock On → Clock Off')}
+    {row('coffee', 'Break', mMinsHm(j.breakMin), j.breakReason ? `Break Start → Resume · ${j.breakReason}` : 'Break Start → Resume')}
+    {row('car-front', 'Travel', mMinsHm(j.travelMin), 'Start Travel → Arrive')}
+    {/* overtime — read-only, system-calculated */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 0' }}>
+      <Icon name="alarm-clock" size={17} color="hsl(var(--muted-foreground))" style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600 }}>Overtime</div>
+        <div style={{ fontSize: 11.5, color: 'hsl(var(--muted-foreground))', marginTop: 1 }}>{j.otFlagged ? 'Flagged for payroll review' : 'Auto-detected by payroll'}</div></div>
+      {j.otFlagged
+        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 700, color: 'hsl(var(--warning))', background: 'hsl(var(--warning) / 0.12)', border: '1px solid hsl(var(--warning) / 0.3)', padding: '3px 9px', borderRadius: 999 }}><Icon name="flag" size={12} />Flagged</span>
+        : <button className="m-press" onClick={() => ctx.flagOt(job.id)} style={{ fontSize: 12, fontWeight: 600, color: 'hsl(var(--primary))', background: 'hsl(var(--primary) / 0.1)', border: 'none', borderRadius: 9, padding: '7px 11px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Flag as OT</button>}
+    </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 6, marginBottom: 14, fontSize: 11.5, color: 'hsl(var(--muted-foreground))', lineHeight: 1.45 }}><Icon name="lock" size={13} style={{ flexShrink: 0 }} />Times are captured from your clock actions — they can't be edited here. Overtime is confirmed by payroll.</div>
+    <MBtn variant="outline" full size="sm" icon="pencil-line" onClick={() => ctx.setAdjustFor(job.id)}>Request time adjustment</MBtn>
+    {(j.adjustments || []).length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10, fontSize: 12, fontWeight: 600, color: 'hsl(var(--warning))' }}><Icon name="clock-alert" size={14} />{j.adjustments.length} adjustment request{j.adjustments.length > 1 ? 's' : ''} pending approval</div>}
+    <div style={{ marginTop: 14 }}><MLabel>Payroll note <span style={{ fontWeight: 400, textTransform: 'none' }}>(only if needed)</span></MLabel><textarea value={j.tsNotes} onChange={(e) => ctx.setTime(job.id, 'tsNotes', e.target.value)} placeholder="Anything payroll should know…" style={{ ...M_INPUT, minHeight: 56, padding: 12, resize: 'none' }} /></div>
   </MCard>;
 }
 
@@ -111,6 +168,10 @@ function MaterialsList({ j, onAddOpen }) {
           <span style={{ fontSize: 14.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{m.qty}</span>
           <span style={{ fontSize: 12.5, color: 'hsl(var(--muted-foreground))', minWidth: 44 }}>{m.unit}</span>
         </div>
+        {(m.status || m.source) && <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, paddingTop: 9, borderTop: '1px solid hsl(var(--border))', flexWrap: 'wrap' }}>
+          {m.source && <span style={{ fontSize: 10.5, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>{m.source}</span>}
+          {m.status && <span style={{ marginLeft: m.source ? 'auto' : 0, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: `hsl(var(--status-${m.tone || 'draft'}))`, background: `hsl(var(--status-${m.tone || 'draft'}) / 0.12)`, border: `1px solid hsl(var(--status-${m.tone || 'draft'}) / 0.28)`, padding: '2px 8px', borderRadius: 999 }}>{m.status}</span>}
+        </div>}
       </MCard>)}
     </div>}
     <MBtn variant="outline" full icon="plus" onClick={onAddOpen}>Add material used</MBtn>
@@ -151,7 +212,9 @@ function JobScreen({ job, ctx }) {
     </div>
 
     <div style={{ ...SCROLL, ...PAD }}>
+      {j.state === 'Travelling' && <TravelCard job={job} j={j} ctx={ctx} />}
       <ClockCard j={j} elapsed={ctx.elapsed(job.id)} />
+      {j.state === 'Travelling' && <ArrivalCard job={job} ctx={ctx} />}
 
       {/* customer & site */}
       <MCard pad={16} style={{ marginBottom: 22 }}>
@@ -196,7 +259,7 @@ function JobScreen({ job, ctx }) {
         <MaterialsList j={j} onAddOpen={() => ctx.setMatFor(job.id)} />
       </MSection>
 
-      <MSection title="Time breakdown"><TimeBreakdown job={job} j={j} ctx={ctx} /></MSection>
+      <MSection title="Live time summary"><LiveTimeSummary job={job} j={j} ctx={ctx} /></MSection>
 
       <MSection title="Client sign-off">
         {j.signed ? <MCard pad={14} style={{ display: 'flex', alignItems: 'center', gap: 11, background: 'hsl(var(--success) / 0.07)', border: '1px solid hsl(var(--success) / 0.3)' }}>
@@ -312,7 +375,7 @@ function ScheduleScreen() {
 // ---- timesheet screen (gap 2 surfaced) -------------------------------------
 function TimesheetScreen({ ctx }) {
   let labour = 0, travel = 0, brk = 0;
-  const rows = MJOBS.map((job) => { const j = ctx.js[job.id]; const sec = ctx.elapsed(job.id); labour += sec; travel += (j.travelMin || 0) * 60; brk += (j.breakMin || 0) * 60; return [job, j, sec]; });
+    const rows = MJOBS.map((job) => { const j = ctx.js[job.id]; const sec = ctx.elapsed(job.id); labour += sec; travel += (j.travelMin || 0) * 60; brk += (j.breakMin || 0) * 60; return [job, j, sec]; });
   const stat = (label, val, color) => <div style={{ flex: 1, textAlign: 'center' }}>
     <div style={{ fontSize: 18, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: color || 'hsl(var(--foreground))' }}>{val}</div>
     <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'hsl(var(--muted-foreground))', marginTop: 3 }}>{label}</div></div>;
@@ -329,15 +392,15 @@ function TimesheetScreen({ ctx }) {
       <MSection title="By job">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
           {rows.map(([job, j, sec]) => <MCard key={job.id} pad={13}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: (j.travelMin || j.breakMin || j.ot) ? 9 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: (j.travelMin || j.breakMin || j.otFlagged) ? 9 : 0 }}>
               <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14.5, fontWeight: 700 }}>{job.title}</div><div style={{ fontSize: 11.5, fontFamily: 'var(--font-mono)', color: 'hsl(var(--muted-foreground))' }}>{job.id}</div></div>
               <div style={{ textAlign: 'right' }}><div style={{ fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{mHm(sec)}</div>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: j.submitted ? 'hsl(var(--success))' : sec > 0 ? 'hsl(var(--warning))' : 'hsl(var(--muted-foreground))' }}>{j.submitted ? 'Submitted' : sec > 0 ? 'Draft' : '—'}</div></div>
             </div>
-            {(j.travelMin || j.breakMin || j.ot) > 0 && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 9, borderTop: '1px solid hsl(var(--border))' }}>
+            {(j.travelMin || j.breakMin || j.otFlagged) > 0 && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 9, borderTop: '1px solid hsl(var(--border))' }}>
               {j.travelMin > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>Travel {j.travelMin}m</span>}
               {j.breakMin > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: 'hsl(var(--muted-foreground))' }}>· Break {j.breakMin}m</span>}
-              {j.ot && <span style={{ fontSize: 11, fontWeight: 700, color: 'hsl(var(--warning))' }}>· OT flagged</span>}</div>}
+              {j.otFlagged && <span style={{ fontSize: 11, fontWeight: 700, color: 'hsl(var(--warning))' }}>· OT flagged</span>}</div>}
           </MCard>)}
         </div>
       </MSection>
@@ -380,6 +443,9 @@ function PortalApp() {
   const [matFor, setMatFor] = useStateMA(null);
   const [assetFor, setAssetFor] = useStateMA(null);
   const [completeInfo, setCompleteInfo] = useStateMA(null);
+  const [breakFor, setBreakFor] = useStateMA(null);
+  const [gateFor, setGateFor] = useStateMA(null);
+  const [adjustFor, setAdjustFor] = useStateMA(null);
   useEffectMA(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffectMA(() => { try { localStorage.setItem(PORTAL_KEY, JSON.stringify({ js })); } catch (e) {} }, [js]);
   const flash = (m) => { setToast(m); setTimeout(() => setToast(null), 2400); };
@@ -389,10 +455,17 @@ function PortalApp() {
     js, now, elapsed, openJob, setOpenJob, setBlockedFor, setSignFor, setMatFor, setAssetFor, flash,
     accept: (id) => upd(id, { state: 'Accepted' }),
     setStage: (id, state) => upd(id, { state }),
+    startTravel: (id) => upd(id, { state: 'Travelling', travelStart: Date.now(), travelStartLabel: new Date().toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) }),
+    arrive: (id) => upd(id, (j) => ({ state: 'On site', travelMin: j.travelStart ? Math.max(1, Math.round((Date.now() - j.travelStart) / 60000)) : j.travelMin })),
     clockOn: (id) => upd(id, { state: 'In progress', clockStart: Date.now() }),
-    pause: (id) => upd(id, (j) => ({ state: 'Paused', clockedSec: j.clockedSec + (j.clockStart ? (Date.now() - j.clockStart) / 1000 : 0), clockStart: null })),
-    resume: (id) => upd(id, { state: 'In progress', clockStart: Date.now() }),
+    pause: (id, reason) => upd(id, (j) => ({ state: 'Paused', clockedSec: j.clockedSec + (j.clockStart ? (Date.now() - j.clockStart) / 1000 : 0), clockStart: null, breakStart: Date.now(), breakReason: reason })),
+    resume: (id) => upd(id, (j) => ({ state: 'In progress', clockStart: Date.now(), breakMin: j.breakMin + (j.breakStart ? Math.round((Date.now() - j.breakStart) / 60000) : 0), breakStart: null })),
+    flagOt: (id) => { upd(id, { otFlagged: true }); flash('Flagged for payroll review'); },
+    addAdjustment: (id, a) => { upd(id, (j) => ({ adjustments: [...(j.adjustments || []), a] })); flash('Adjustment request submitted'); },
+    travelElapsed: (id) => { const j = js[id]; return j.travelStart ? (now - j.travelStart) / 1000 : 0; },
+    onSiteElapsed: (id) => { const j = js[id]; return elapsed(id) + (j.breakMin || 0) * 60; },
     toggle: (id, key, i) => upd(id, (j) => ({ checks: { ...j.checks, [key]: { ...(j.checks[key] || {}), [i]: !(j.checks[key] || {})[i] } } })),
+    setCheck: (id, key, i, val) => upd(id, (j) => ({ checks: { ...j.checks, [key]: { ...(j.checks[key] || {}), [i]: val } } })),
     addPhoto: (id, cat) => upd(id, (j) => ({ photos: { ...j.photos, [cat]: (j.photos[cat] || 0) + 1 } })),
     addMaterial: (id, m) => upd(id, (j) => ({ materials: [...j.materials, m] })),
     saveAsset: (id, eg, data) => upd(id, (j) => ({ assets: { ...j.assets, [eg]: data } })),
@@ -400,12 +473,14 @@ function PortalApp() {
     setNotes: (id, v) => upd(id, { notes: v }),
     unblock: (id) => upd(id, { state: 'On site', blockedReason: null }),
     submitTs: (id) => { upd(id, { state: 'Submitted', submitted: true }); flash('Timesheet submitted to the office'); },
+    attemptClockOn: (id) => { const job = MJOBS.find((x) => x.id === id); const j = js[id]; if (prestartGate(job, j).length) { setGateFor(id); return; } ctx.clockOn(id); },
     attemptComplete: (id) => {
       const job = MJOBS.find((x) => x.id === id); const j = js[id]; const out = outstandingFor(job, j);
       if (out.length) { setCompleteInfo({ id, outstanding: out }); return; }
       upd(id, (s) => ({ state: 'Complete', clockedSec: s.clockedSec + (s.clockStart ? (Date.now() - s.clockStart) / 1000 : 0), clockStart: null }));
       flash('Job complete — submit your timesheet');
     },
+    setBreakFor, setGateFor, setAdjustFor,
   };
   const job = openJob && MJOBS.find((x) => x.id === openJob);
   return <IOSDevice>
@@ -421,9 +496,13 @@ function PortalApp() {
       {!job && <MTabBar active={tab} onChange={setTab} />}
 
       <BlockedSheet open={!!blockedFor} onClose={() => setBlockedFor(null)} onPick={(r) => { upd(blockedFor, (j) => ({ state: 'Blocked', blockedReason: r, clockedSec: j.clockedSec + (j.clockStart ? (Date.now() - j.clockStart) / 1000 : 0), clockStart: null })); setBlockedFor(null); flash('Marked blocked — office notified'); }} />
+      <BreakReasonSheet open={!!breakFor} onClose={() => setBreakFor(null)} onPick={(r) => { ctx.pause(breakFor, r); setBreakFor(null); flash('On break — ' + r.toLowerCase()); }} />
+      <PrestartGateSheet open={!!gateFor} job={gateFor && MJOBS.find((x) => x.id === gateFor)} j={gateFor && js[gateFor]} ctx={ctx} onClose={() => setGateFor(null)}
+        onClockOn={() => { const id = gateFor; setGateFor(null); ctx.clockOn(id); }} />
+      <AdjustSheet open={!!adjustFor} onClose={() => setAdjustFor(null)} onSubmit={(a) => { ctx.addAdjustment(adjustFor, a); setAdjustFor(null); }} />
       <SignSheet open={!!signFor} onClose={() => setSignFor(null)} contact={job && job.contact} onSign={() => { upd(signFor, { signed: true }); setSignFor(null); flash('Signature captured'); }} />
       <AddMaterialSheet open={!!matFor} onClose={() => setMatFor(null)} onAdd={(m) => { ctx.addMaterial(matFor, m); setMatFor(null); flash('Material added'); }} />
-      <AssetSheet open={!!assetFor} onClose={() => setAssetFor(null)} asset={assetFor && assetFor.asset} data={assetFor && js[assetFor.id].assets[assetFor.asset[0]]} onFlash={flash} onSave={(data) => { ctx.saveAsset(assetFor.id, assetFor.asset[0], data); setAssetFor(null); flash('Asset details saved'); }} />
+      <AssetSheet open={!!assetFor} onClose={() => setAssetFor(null)} asset={assetFor && assetFor.asset} data={assetFor && js[assetFor.id].assets[assetFor.asset[0]]} onFlash={flash} onSave={(data) => { ctx.saveAsset(assetFor.id, assetFor.asset[0], data); setAssetFor(null); flash(data.verdict === 'Verified' ? 'Asset verified & saved' : 'Asset details saved'); }} />
       <CompleteBlockedSheet open={!!completeInfo} onClose={() => setCompleteInfo(null)} outstanding={completeInfo ? completeInfo.outstanding : []} />
 
       {toast && <div style={{ position: 'absolute', bottom: 102, left: 16, right: 16, zIndex: 90, background: 'hsl(var(--sidebar))', color: '#fff', borderRadius: 12, padding: '13px 15px', fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 9, boxShadow: '0 10px 34px hsl(222 47% 11% / 0.35)' }}><Icon name="circle-check-big" size={17} color="hsl(var(--success))" />{toast}</div>}
