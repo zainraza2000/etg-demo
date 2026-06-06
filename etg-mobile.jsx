@@ -17,6 +17,12 @@ function mMinsHm(min) { const h = Math.floor(min / 60); const m = Math.round(min
 const M_UNITS = ['each', 'metres', 'box', 'roll', 'litre', 'pair'];
 const M_CONDITIONS = ['Good', 'Fair', 'Poor', 'Faulty'];
 const BLOCK_REASONS = ['No site access', 'Client unavailable', 'Missing materials', 'Safety concern', 'Scope unclear / changed', 'Needs approval', 'Waiting on another trade', 'Other'];
+// pause/break reasons — required pick (P5)
+const BREAK_REASONS = ['Meal break', 'Waiting for access', 'Waiting for materials', 'Client delay', 'Internal / admin delay'];
+// time-adjustment request — what can be corrected (P5)
+const ADJUST_FIELDS = ['Travel time', 'Labour time', 'Break time', 'On-site time', 'Overtime'];
+// material sources — drives downstream handling (P4)
+const MAT_SOURCES = ['Van stock', 'Office stock', 'Supplier pickup', 'Purchased for job', 'Client supplied'];
 
 // ---- the technician's jobs (no finance fields by design) -------------------
 // checklists: typed groups, each item { label, req }. photosReq: { cat, req }.
@@ -25,15 +31,15 @@ const MJOBS = [
     id: 'FJ-001052', title: 'CCTV Upgrade', client: 'ABC Corporate', site: 'Sydney Office',
     address: '14 George St, Sydney NSW 2000', contact: 'John Smith', role: 'Facilities Manager',
     phone: '0412 345 678', email: 'john.smith@abccorp.com.au',
-    time: '8:00 AM – 12:00 PM', start: '8:00 AM', priority: 'High', cc: 'CC-000046', zone: 'Australia/Sydney',
+    time: '8:00 AM – 12:00 PM', start: '8:00 AM', priority: 'High', cc: 'CC-000046', zone: 'Australia/Sydney', eta: '8:03 AM',
     desc: 'Replace 4 reception dome cameras and re-terminate to the NVR. Verify coverage and recording before sign-off.',
     scope: ['Remove 4 faulty dome cameras', 'Install 4× Hikvision 8MP domes', 'Re-terminate Cat6 to the NVR', 'Verify recording + full coverage'],
     access: 'Report to reception for sign-in. Lift fob at the security desk. Roof / ceiling access requires an escort.',
     safetyNote: 'Working at heights — EWP permit on file.',
     checklists: [
       { key: 'prestart', label: 'Pre-start', icon: 'clipboard-check', items: [{ label: 'Site induction signed', req: true }, { label: 'JSA / SWMS reviewed', req: true }, { label: 'PPE on and checked', req: true }] },
-      { key: 'safety', label: 'Safety', icon: 'hard-hat', items: [{ label: 'Working-at-heights controls in place', req: true }, { label: 'Ladder / EWP inspected', req: true }, { label: 'PoE isolated before any swap', req: true }] },
-      { key: 'testing', label: 'Testing', icon: 'activity', items: [{ label: 'All 4 cameras streaming live', req: true }, { label: 'Recording verified on the NVR', req: true }, { label: 'Night / IR mode checked', req: false }] },
+      { key: 'safety', label: 'Safety', icon: 'hard-hat', items: [{ label: 'Working-at-heights controls in place', req: true }, { label: 'Ladder / EWP inspected', req: true }, { label: 'PoE isolated before camera swap', req: true, form: 'poe' }] },
+      { key: 'testing', label: 'Testing', icon: 'activity', items: [{ label: 'All 4 cameras streaming live', req: true }, { label: 'Recording verified on the NVR', req: true }, { label: 'Night / IR mode checked', warn: true }] },
       { key: 'completion', label: 'Completion', icon: 'clipboard-list', items: [{ label: 'Full coverage checked with client', req: true }, { label: 'Work area cleaned up', req: true }, { label: 'Old units bagged for return', req: false }] },
       { key: 'commissioning', label: 'Asset commissioning', icon: 'box', items: [{ label: 'Cameras added to the register', req: true }, { label: 'Serial / MAC recorded', req: true }] },
     ],
@@ -233,7 +239,7 @@ function MTabBar({ active, onChange }) {
 }
 
 Object.assign(window, {
-  mFmtDur, mHm, mMinsHm, M_UNITS, M_CONDITIONS, BLOCK_REASONS, MJOBS,
+  mFmtDur, mHm, mMinsHm, M_UNITS, M_CONDITIONS, BLOCK_REASONS, BREAK_REASONS, ADJUST_FIELDS, MAT_SOURCES, MJOBS,
   LIFE_STEPS, STATE_DONE, lifeIndex, M_STATE, MStatePill, MPrio, Lifecycle,
   MBtn, MCard, MSection, MDivider, MLabel, M_INPUT, MInput, MSelect, MToggle, MChips, MInfoRow, MTabBar,
 });
